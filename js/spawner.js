@@ -35,7 +35,12 @@ const Spawner = {
     queueSpawn(type,x,y,time=900,elite=false){if(this.warnings.length>=this.maxWarnings||!this.canSpawn(type))return false;time*=difficultyProfile.telegraph;const p=this.safePoint(x,y);this.warnings.push({type,x:p.x,y:p.y,time,maxTime:time,elite,radius:type==='boss'?70:type==='miniboss'?52:elite?35:28});return true;},
     executeSpawn(w){queueDirectSpawn(w.type,w.x,w.y,w.elite,true);},
     edgePoint(edge){const pad=55;if(edge===0)return{x:Math.random()*arena.width,y:pad};if(edge===1)return{x:Math.random()*arena.width,y:arena.height-pad};if(edge===2)return{x:pad,y:Math.random()*arena.height};return{x:arena.width-pad,y:Math.random()*arena.height};},
-    chooseEdge(){if(this.preferredEdges?.length)return this.preferredEdges[Math.floor(Math.random()*this.preferredEdges.length)];return(Math.floor(Math.random()*4)+this.edgeShift)%4;},
+    chooseEdge(){
+        // Si el jugador lleva rato acampado, parte de las oleadas entra por los bordes que tiene cerca.
+        if(typeof campPressure!=='undefined'&&campPressure>.55&&Math.random()<campPressure*.75){const near=campEdges();if(near)return near[Math.floor(Math.random()*near.length)];}
+        if(this.preferredEdges?.length)return this.preferredEdges[Math.floor(Math.random()*this.preferredEdges.length)];
+        return(Math.floor(Math.random()*4)+this.edgeShift)%4;
+    },
     chooseType(round){
         let bag=[...(this.roundRoster||['normal'])];if(bag.length)bag.push(bag[0]);
         if(hasModifier('Horda'))bag.push('normal','normal','normal','fast');

@@ -133,6 +133,30 @@ vm.runInThisContext(`
   resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
   update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
 
+  // La vida enemiga tenía un tope que se alcanzaba hacia la ronda 32: a partir de ahí el juego
+  // se derrumbaba porque el daño del jugador seguía subiendo. Debe crecer siempre.
+  const hpAt=(type,round)=>{resetEntities();currentRound=round;const z=queueDirectSpawn(type,300,300);const hp=z.maxHealth;resetEntities();return hp;};
+  for(const type of ['normal','miniboss','boss']){
+    const curve=[10,20,30,40,60].map(r=>hpAt(type,r));
+    for(let i=1;i<curve.length;i++)if(curve[i]<=curve[i-1])throw new Error('La vida deja de crecer: '+type);
+    if(curve[4]<curve[1]*2)throw new Error('La vida tardía crece demasiado poco: '+type);
+  }
+
+  // Dispersión reparte el daño de la ráfaga; no debe multiplicarlo.
+  resetEntities(); player=new Player(500,500); player.fireRate=0; player.weaponLevel=6; player.bonusDamage=0;
+  const volleyDamage=perks=>{player.perks={scatter:0,lance:0,ricochet:0,arc:0,siege:0,...perks};projectiles.length=0;player.shoot(projectiles,0);return projectiles.reduce((s,p)=>s+p.damage,0);};
+  const plain=volleyDamage({}), spread=volleyDamage({scatter:3});
+  if(spread>plain*1.25)throw new Error('Dispersión sigue multiplicando el daño total');
+  if(spread<plain*.9)throw new Error('Dispersión penaliza demasiado');
+
+  // Un proyectil no puede dañar dos veces al mismo enemigo aunque lo atraviese.
+  resetEntities(); player.perks={scatter:0,lance:3,ricochet:0,arc:0,siege:0}; player.x=300; player.y=400;
+  const target=queueDirectSpawn('normal',520,400); target.maxHealth=target.health=1e5;
+  projectiles.length=0; player.shoot(projectiles,0);
+  const shotDamage=projectiles[0].damage;
+  for(let i=0;i<60;i++)update(16,performance.now()+i*16);
+  if(1e5-target.health>shotDamage+.001)throw new Error('Un proyectil golpeó dos veces al mismo enemigo');
+
   // El botón principal del menú descarta la partida a medias, así que sólo puede decir "Jugar"
   // cuando no hay ninguna en curso.
   const startButton=document.getElementById('btn-start');

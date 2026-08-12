@@ -17,8 +17,36 @@ const VOLUME_EXPONENT = 1.7;
 // Quién ha causado el último daño, para poder decir de qué murió el jugador sin adivinarlo.
 let lastDamageSource = null;
 let firingZombie = null;
+// Quedarse quieto en una esquina disparando era la estrategia dominante: los enemigos entraban
+// siempre por el mismo lado. Se mide cuánto se mueve el jugador y, si acampa, las oleadas empiezan
+// a llegar por los bordes que tiene al lado.
+let campSamples = [], campSampleTimer = 0, campPressure = 0;
+function updateCampPressure(dt){
+    campSampleTimer-=dt;
+    if(campSampleTimer>0||!player)return;
+    campSampleTimer=500;
+    campSamples.push({x:player.x,y:player.y});
+    if(campSamples.length>10)campSamples.shift();
+    if(campSamples.length<6){campPressure=0;return;}
+    const cx=campSamples.reduce((s,p)=>s+p.x,0)/campSamples.length,cy=campSamples.reduce((s,p)=>s+p.y,0)/campSamples.length;
+    const spread=campSamples.reduce((s,p)=>s+distance(p.x,p.y,cx,cy),0)/campSamples.length;
+    campPressure=clamp(1-spread/220,0,1);
+}
+function campEdges(){
+    if(!player)return null;
+    const left=player.x,right=arena.width-player.x,top=player.y,bottom=arena.height-player.y;
+    const edges=[{edge:2,d:left},{edge:3,d:right},{edge:0,d:top},{edge:1,d:bottom}].sort((a,b)=>a.d-b.d);
+    return [edges[0].edge,edges[1].edge];
+}
 function enemyLabel(z){if(!z)return null;return z.displayName||(typeof ENEMY_CATALOG!=='undefined'?ENEMY_CATALOG[z.type]?.name:null)||z.type||null;}
 function damagePlayer(amount,source){if(source)lastDamageSource=source;return player.takeDamage(amount);}
+// El arco hacía daño pero sólo dibujaba un anillo diminuto, así que parecía no funcionar.
+// Se reutiliza la estela del dash (sin daño) para trazar el rayo entre objetivos.
+function addChainArc(from,to){
+    dashTrails.push({from:{x:from.x,y:from.y},to:{x:to.x,y:to.y},life:200,maxLife:200,color:'#7fd4d0',damage:0,hit:new Set()});
+    if(dashTrails.length>ENTITY_LIMITS.dashTrails)dashTrails.shift();
+    addRing(to.x,to.y,22,'#7fd4d0');
+}
 const COMBO_CAP = 25;
 const COMBO_STEP = 0.08;
 function comboMultiplier(){return 1+Math.min(combo,COMBO_CAP)*COMBO_STEP;}
@@ -529,7 +557,7 @@ function beginRun(startRound=1,preparedPlayer=null){
     Input.reset();document.activeElement?.blur?.();
     ensureAudio();
     const beginSize=arenaSizeForRound(startRound);arena.width=beginSize.width;arena.height=beginSize.height;applyArenaTheme(startRound);lastAnnouncedZone=null;
-    player=preparedPlayer||new Player(arena.width/2,arena.height/2);player.x=arena.width/2;player.y=arena.height/2;player.health=player.maxHealth;player.buffs={};player.powers={};player.storedPower=null;player.regen=null;player.orbs=0;player.dashCharges=player.maxDashCharges;player.dashRechargeTimer=0;resetEntities();score=0;combo=0;comboTimer=0;kills=0;bestCombo=0;autosaveTimer=0;adaptivePressure=0;roundsWithoutDamage=0;modifierHistory=[];enemyIdentityHistory=[];synergyHistory=[];obstacleHistory=[];stolenPower=null;lastDamageSource=null;firingZombie=null;Spawner.resetSession();resetEncounterRotation();
+    player=preparedPlayer||new Player(arena.width/2,arena.height/2);player.x=arena.width/2;player.y=arena.height/2;player.health=player.maxHealth;player.buffs={};player.powers={};player.storedPower=null;player.regen=null;player.orbs=0;player.dashCharges=player.maxDashCharges;player.dashRechargeTimer=0;resetEntities();score=0;combo=0;comboTimer=0;kills=0;bestCombo=0;autosaveTimer=0;adaptivePressure=0;roundsWithoutDamage=0;modifierHistory=[];enemyIdentityHistory=[];synergyHistory=[];obstacleHistory=[];stolenPower=null;lastDamageSource=null;firingZombie=null;campSamples=[];campSampleTimer=0;campPressure=0;Spawner.resetSession();resetEncounterRotation();
     runInfo={startRound,difficulty:selectedDifficulty,advanced:startRound>1,startedAt:Date.now()};
     uiStartScreen.classList.add('hidden');document.getElementById('loadout-screen').classList.add('hidden');uiRecoveryScreen.classList.add('hidden');uiGameOverScreen.classList.add('hidden');uiPauseScreen.classList.add('hidden');uiHUD.classList.remove('hidden');
     configureRound(startRound);gameState='PLAYING';markSessionActive();saveProgress(startRound>1?'advanced-start':'new-game');lastTime=performance.now();musicDuck=1;startMusic();startTutorial();
@@ -590,9 +618,9 @@ function nearbyZombies(spatial,x,y){
 function checkCollisions(){
     const spatial=buildZombieGrid();
     for(const p of projectiles){
-        if(!p.active)continue;if(p.x<0||p.x>arena.width||p.y<0||p.y>arena.height){if(p.bounces>0){p.bounces--;if(p.x<0||p.x>arena.width)p.vx*=-1;if(p.y<0||p.y>arena.height)p.vy*=-1;p.x=clamp(p.x,2,arena.width-2);p.y=clamp(p.y,2,arena.height-2);}else p.active=false;continue;}
-        for(const o of obstacles){if(!p.active||!o.active||!['crate','wall'].includes(o.type))continue;if(circleHitsObstacle(p.x,p.y,p.size,o)){if(p.bounces>0){p.bounces--;const nx=Math.abs(p.x-o.x)>o.radius*.75?Math.sign(p.x-o.x):0,ny=nx?0:Math.sign(p.y-o.y);if(nx)p.vx*=-1;if(ny)p.vy*=-1;p.x+=nx*5;p.y+=ny*5;}else p.active=false;o.health-=p.damage;if(o.type==='crate'&&o.health<=0&&Math.random()<.14)spawnFood(o.x,o.y,null,'elite');}}
-        for(const z of nearbyZombies(spatial,p.x,p.y)){if(!p.active||!z.active)continue;const dx=p.x-z.x,dy=p.y-z.y,reach=p.size+z.size/2;if(dx*dx+dy*dy<reach*reach){for(let i=0;i<4;i++)spawnParticle(p.x,p.y,z.color,3,3);const sourceAngle=Math.atan2(-p.vy,-p.vx);const died=z.takeDamage(p.damage,sourceAngle);if(options.damageNumbers&&damageNumbers.length<32)damageNumbers.push({x:z.x,y:z.y-z.size/2,value:Math.round(p.damage),life:650});if(p.chain>0){const arc=p.chain,targets=zombies.filter(other=>other.active&&other!==z&&distance(other.x,other.y,z.x,z.y)<170+arc*30).sort((a,b)=>distance(a.x,a.y,z.x,z.y)-distance(b.x,b.y,z.x,z.y)).slice(0,1+arc);for(const target of targets){addRing(target.x,target.y,24,'#60a5fa');const chained=target.takeDamage(p.damage*(.30+.08*arc));if(chained)handleEnemyDeath(target);}p.chain=0;}if(p.secondary){const a=Math.atan2(p.vy,p.vx);for(const off of[-.48,.48]){const child=spawnProjectile(p.x,p.y,a+off,Math.hypot(p.vx,p.vy)*.8,p.damage*.28,Math.max(2,p.size*.55),'#fef3c7',0);if(child)child.secondary=false;}p.secondary=false;}if(p.pierce>0){p.pierce--;p.damage*=.82;}else p.active=false;if(died)handleEnemyDeath(z);}}
+        if(!p.active)continue;if(p.x<0||p.x>arena.width||p.y<0||p.y>arena.height){if(p.bounces>0){p.bounces--;p.damage*=.62;if(p.x<0||p.x>arena.width)p.vx*=-1;if(p.y<0||p.y>arena.height)p.vy*=-1;p.x=clamp(p.x,2,arena.width-2);p.y=clamp(p.y,2,arena.height-2);}else p.active=false;continue;}
+        for(const o of obstacles){if(!p.active||!o.active||!['crate','wall'].includes(o.type))continue;if(circleHitsObstacle(p.x,p.y,p.size,o)){if(p.bounces>0){p.bounces--;p.damage*=.62;const nx=Math.abs(p.x-o.x)>o.radius*.75?Math.sign(p.x-o.x):0,ny=nx?0:Math.sign(p.y-o.y);if(nx)p.vx*=-1;if(ny)p.vy*=-1;p.x+=nx*5;p.y+=ny*5;}else p.active=false;o.health-=p.damage;if(o.type==='crate'&&o.health<=0&&Math.random()<.14)spawnFood(o.x,o.y,null,'elite');}}
+        for(const z of nearbyZombies(spatial,p.x,p.y)){if(!p.active||!z.active||p.hits?.has(z))continue;const dx=p.x-z.x,dy=p.y-z.y,reach=p.size+z.size/2;if(dx*dx+dy*dy<reach*reach){p.hits?.add(z);for(let i=0;i<4;i++)spawnParticle(p.x,p.y,z.color,3,3);const sourceAngle=Math.atan2(-p.vy,-p.vx);const died=z.takeDamage(p.damage,sourceAngle);if(options.damageNumbers&&damageNumbers.length<32)damageNumbers.push({x:z.x,y:z.y-z.size/2,value:Math.round(p.damage),life:650});if(p.chain>0){const arc=p.chain,targets=zombies.filter(other=>other.active&&other!==z&&distance(other.x,other.y,z.x,z.y)<170+arc*30).sort((a,b)=>distance(a.x,a.y,z.x,z.y)-distance(b.x,b.y,z.x,z.y)).slice(0,1+arc);const arcDamage=p.damage*(.45+.12*arc);for(const target of targets){addChainArc(z,target);const chained=target.takeDamage(arcDamage);if(options.damageNumbers&&damageNumbers.length<32)damageNumbers.push({x:target.x,y:target.y-target.size/2,value:Math.round(arcDamage),life:650});if(chained)handleEnemyDeath(target);}p.chain=0;}if(p.secondary){const a=Math.atan2(p.vy,p.vx);for(const off of[-.48,.48]){const child=spawnProjectile(p.x,p.y,a+off,Math.hypot(p.vx,p.vy)*.8,p.damage*.28,Math.max(2,p.size*.55),'#fef3c7',0);if(child)child.secondary=false;}p.secondary=false;}if(p.pierce>0){p.pierce--;p.damage*=.82;}else p.active=false;if(died)handleEnemyDeath(z);}}
     }
     for(const p of enemyProjectiles){if(!p.active)continue;if(p.x<0||p.x>arena.width||p.y<0||p.y>arena.height){p.active=false;continue;}if(distance(p.x,p.y,player.x,player.y)<p.size+playerRadius()){p.active=false;if(player.orbs>0){player.orbs--;continue;}if(p.effect==='freeze')player.addBuff('frozen',3500,.68,'FR','Frozen');if(damagePlayer(p.damage,{kind:'enemy',label:p.ownerLabel})){playSound('hit');shakeTime=140;shakeMagnitude=9;}}}
     for(const z of zombies){if(!z.active)continue;const d=distance(player.x,player.y,z.x,z.y);if(!player.hasPower('ghost')&&d<playerRadius()+z.size/2&&z.attackCooldown<=0){if(player.orbs>0&&!z.isBoss){player.orbs--;const died=z.takeDamage((player.baseDamage+player.bonusDamage)*1.5);if(died)handleEnemyDeath(z);z.attackCooldown=700;continue;}if(damagePlayer(z.damage,{kind:'enemy',label:enemyLabel(z)})){playSound('hit');shakeTime=150;shakeMagnitude=12;const safe=Math.max(1,d);movePlayerByAxes((player.x-z.x)/safe*14,(player.y-z.y)/safe*14);}z.attackCooldown=650;}}
@@ -663,7 +691,7 @@ function update(dt,time){
         garlicTick-=dt;
         for(const z of zombies){try{const oldSpeed=z.speed,near=distance(z.x,z.y,player.x,player.y),freeze=player.hasPower('timeFreeze')?(z.isBoss ? .58 : z.isMiniBoss ? .42 : .2):1,behaviorDt=dt*difficultyProfile.abilityRate*freeze,ghostOffset=player.hasPower('ghost')&&!z.isBoss?180:0,targetX=player.x+Math.cos(time/820+z.x*.01)*ghostOffset,targetY=player.y+Math.sin(time/730+z.y*.01)*ghostOffset;z.speed*=difficultyProfile.speed/Math.max(.2,difficultyProfile.abilityRate);if(player.hasPower('gravityWell')&&!z.isBoss){const a=Math.atan2(player.y-z.y,player.x-z.x),pull=(z.isMiniBoss?0.18:.48)*dt/16;z.x+=Math.cos(a)*pull;z.y+=Math.sin(a)*pull;}if(player.buffs.icecream&&near<430)z.speed*=z.isBoss ? .86 : z.isMiniBoss ? .78 : .65;if(player.buffs.cheese&&near<150)z.speed*=z.isBoss ? .9 : .72;firingZombie=z;z.update(behaviorDt,targetX,targetY);firingZombie=null;z.speed=oldSpeed;if(hasModifier('Regeneración enemiga')&&z.lastDamaged>2600)z.health=Math.min(z.maxHealth,z.health+z.maxHealth*(z.isBoss ? .00018 : .00045)*dt/16);if(player.buffs.garlic&&near<115&&garlicTick<=0){const died=z.takeDamage(Math.min(4,(player.baseDamage+player.bonusDamage)*.12));if(died)handleEnemyDeath(z);}}catch(e){z.active=false;console.warn('Enemigo defectuoso retirado',e);}}
         if(garlicTick<=0)garlicTick=420;
-        updateTutorial(dt);
+        updateTutorial(dt);updateCampPressure(dt);
         for(const n of damageNumbers){n.life-=dt;n.y-=dt*.025;}damageNumbers=damageNumbers.filter(n=>n.life>0);particles=particles.filter(p=>p.active&&p.life>0);checkCollisions();updateCamera();updateHUD(time);
         autosaveTimer+=dt;if(autosaveTimer>=8000){autosaveTimer=0;saveProgress('interval');}
         if(player.health<=0)gameOver();

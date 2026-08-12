@@ -272,10 +272,11 @@ class Player {
         const pierce = Math.max(this.perks?.lance || 0, this.buffs.pierce ? 1 : 0);
 
         if (scatter > 0) {
-            // Abanico: cada nivel añade un proyectil y cada extra reduce algo el daño por disparo.
+            // Abanico: reparte el daño de la ráfaga entre más proyectiles en vez de multiplicarlo.
+            // Dispersión compra cobertura, no potencia: si no, apilarla mataba todo desde una esquina.
             const baseCount = this.weaponLevel < 4 ? 1 : this.weaponLevel < 6 ? 2 : 3;
             const total = baseCount + scatter;
-            const scatterDamage = pDamage * Math.pow(0.88, scatter);
+            const scatterDamage = pDamage * baseCount * 1.12 / total;
             for (let i = 0; i < total; i++) {
                 const offset = (i - (total - 1) / 2) * 0.15;
                 spawnProjectile(startX, startY, angle + offset, pSpeed, scatterDamage, pSize, color, pierce);

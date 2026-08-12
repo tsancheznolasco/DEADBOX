@@ -12,6 +12,9 @@ class Projectile {
         this.pierce = pierce;
         this.bounces = 0;
         this.chain = 0;                 // se reinicia aquí porque los proyectiles vienen de un pool
+        // Un proyectil que perfora seguía solapando al mismo enemigo y volvía a dañarlo cada
+        // fotograma, así que se recuerda a quién ya ha golpeado.
+        if (this.hits) this.hits.clear(); else this.hits = new Set();
         this.effect = null;
         this.secondary = false;
         this.life = owner === 'enemy' ? 5000 : 3000;

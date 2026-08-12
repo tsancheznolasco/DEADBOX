@@ -14,7 +14,9 @@ class Zombie {
         this.size = this.baseSize;
         this.speed = this.baseSpeed * (1 + Math.min(.25, difficulty * .008));
         const earlyEase = difficulty <= 5 ? lerp(.5, 1, (difficulty - 1) / 4) : 1;
-        this.maxHealth = this.baseHealth * (1 + Math.min(.8,difficulty * .025)) * earlyEase;
+        // La vida seguía un tope que se alcanzaba hacia la ronda 32, así que a partir de ahí los
+        // enemigos dejaban de endurecerse mientras el daño del jugador seguía creciendo sin límite.
+        this.maxHealth = this.baseHealth * (1 + Math.min(.8, difficulty * .025) + Math.max(0, difficulty - 18) * .06 + Math.pow(Math.max(0, difficulty - 25) / 10, 2) * .3) * earlyEase;
         this.health = this.maxHealth;
         this.damage = this.baseDamage * (1 + Math.min(.8, difficulty * .035));
         this.color = this.baseColor;
@@ -201,7 +203,7 @@ class MiniBossZombie extends Zombie {
     constructor(){super();this.baseSize=62;this.baseSpeed=.95;this.baseHealth=420;this.baseDamage=20;this.baseColor='#f97316';this.type='miniboss';this.scoreValue=250;}
     init(x,y,d){
         super.init(x,y,d);this.isMiniBoss=true;this.variant=chooseMinibossForEncounter(d);this.bestiaryId=this.variant;this.displayName=encounterName(this.variant);this.color=ENEMY_CATALOG[this.variant]?.color||this.baseColor;this.phase=1;
-        const cycle=Math.floor(Math.max(0,d-5)/60);this.modifier=difficultyProfile.bossTier>=3?ENCOUNTER_MODIFIERS[(cycle+Math.floor(selectedDifficulty/100))%ENCOUNTER_MODIFIERS.length]:null;this.maxHealth=this.baseHealth*(1+Math.min(1.1,d*.025))*(this.modifier==='armored'?1.22:this.modifier==='frenzied' ? .88 : 1);this.health=this.maxHealth;if(this.modifier==='frenzied')this.speed*=1.25;
+        const cycle=Math.floor(Math.max(0,d-5)/60);this.modifier=difficultyProfile.bossTier>=3?ENCOUNTER_MODIFIERS[(cycle+Math.floor(selectedDifficulty/100))%ENCOUNTER_MODIFIERS.length]:null;this.maxHealth=this.baseHealth*(1+d*.075+Math.pow(Math.max(0,d-8)/10,2)*.35)*(this.modifier==='armored'?1.22:this.modifier==='frenzied' ? .88 : 1);this.health=this.maxHealth;if(this.modifier==='frenzied')this.speed*=1.25;
         this.skillTimer=1500;this.moveSkill=2600;this.arenaSkill=4400;return this;
     }
     update(dt,tx,ty){
@@ -215,7 +217,7 @@ class MiniBossZombie extends Zombie {
 
 class BossZombie extends Zombie {
     constructor(){super();this.baseSize=94;this.baseSpeed=.68;this.baseHealth=1100;this.baseDamage=25;this.baseColor='#dc2626';this.type='boss';this.scoreValue=1000;}
-    init(x,y,d){super.init(x,y,d);this.isBoss=true;this.evolution=Math.max(1,Math.floor(d/10));this.variant=chooseBossForEncounter(d);this.bestiaryId=this.variant;this.displayName=encounterName(this.variant);this.color=ENEMY_CATALOG[this.variant]?.color||this.baseColor;this.modifier=difficultyProfile.bossTier>=3?ENCOUNTER_MODIFIERS[(this.evolution+Math.floor(selectedDifficulty/100))%ENCOUNTER_MODIFIERS.length]:null;this.maxHealth=this.baseHealth*(1+Math.min(1.25,d*.025))*(this.modifier==='armored'?1.2:this.modifier==='frenzied' ? .86 : 1);this.health=this.maxHealth;if(this.modifier==='frenzied')this.speed*=1.22;this.skillTimer=1400;this.phase=1;this.arenaSkillTimer=4200;this.moveSkillTimer=2900;return this;}
+    init(x,y,d){super.init(x,y,d);this.isBoss=true;this.evolution=Math.max(1,Math.floor(d/10));this.variant=chooseBossForEncounter(d);this.bestiaryId=this.variant;this.displayName=encounterName(this.variant);this.color=ENEMY_CATALOG[this.variant]?.color||this.baseColor;this.modifier=difficultyProfile.bossTier>=3?ENCOUNTER_MODIFIERS[(this.evolution+Math.floor(selectedDifficulty/100))%ENCOUNTER_MODIFIERS.length]:null;this.maxHealth=this.baseHealth*(1+d*.11+Math.pow(Math.max(0,d-8)/10,2)*.6)*(this.modifier==='armored'?1.2:this.modifier==='frenzied' ? .86 : 1);this.health=this.maxHealth;if(this.modifier==='frenzied')this.speed*=1.22;this.skillTimer=1400;this.phase=1;this.arenaSkillTimer=4200;this.moveSkillTimer=2900;return this;}
     update(dt,tx,ty){
         const ratio=this.health/this.maxHealth,maxPhase=difficultyProfile.bossTier===1?2:3;this.phase=Math.min(maxPhase,ratio<=.25?3:ratio<=.6?2:1);
         const old=this.speed;this.speed*=1+(this.phase-1)*.18;super.update(dt,tx,ty);this.speed=old;
