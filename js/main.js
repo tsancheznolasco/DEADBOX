@@ -203,55 +203,100 @@ function playSound(type){
     try{const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.connect(gain);gain.connect(audioCtx.destination);const now=audioCtx.currentTime;osc.type=type==='shoot'?'square':type==='hit'?'sawtooth':'sine';osc.frequency.setValueAtTime(type==='shoot'?380:type==='hit'?130:75,now);osc.frequency.exponentialRampToValueAtTime(type==='shoot'?110:45,now+.09);gain.gain.setValueAtTime(.055*options.master*options.effects,now);gain.gain.exponentialRampToValueAtTime(.005,now+.1);osc.start(now);osc.stop(now+.11);}catch(e){console.warn('Audio skipped',e);}
 }
 
-// Música ambiental sintetizada: cada zona tiene su raíz, escala y tempo. No hay archivos de audio.
+// Música procedural: una pieza escrita (progresión Am–F–C–G, melodía, bajo, pad y batería).
+// Cada zona transpone y retimbra el mismo tema, así el juego mantiene una identidad reconocible.
+const MUSIC_BPM=124;
+const MUSIC_ROOT=110;                                     // A2
+const MUSIC_PROGRESSION=[{root:0,triad:[0,3,7]},{root:-4,triad:[0,4,7]},{root:3,triad:[0,4,7]},{root:-2,triad:[0,4,7]}];
+const MUSIC_MELODY=[                                      // semitonos sobre la tónica; null = silencio
+    12,null,15,12, 19,null,17,null,
+    20,null,19,17, 15,null,12,null,
+    10,null,15,19, 22,null,19,null,
+    17,null,14,17, 14,null,10,null,
+    19,null,22,19, 24,null,22,null,
+    22,null,20,19, 17,null,15,null,
+    15,null,19,22, 24,null,27,null,
+    26,null,22,null, 19,null,14,null
+];
 const MUSIC_ZONES={
-    containment:{root:55.00,scale:[0,3,5,7,10],step:.50,wave:'triangle'},
-    foundry:{root:61.74,scale:[0,2,3,7,8],step:.46,wave:'sawtooth'},
-    bloom:{root:49.00,scale:[0,2,5,7,9],step:.52,wave:'triangle'},
-    cryo:{root:65.41,scale:[0,2,3,7,10],step:.44,wave:'sine'},
-    void:{root:46.25,scale:[0,1,5,6,10],step:.42,wave:'triangle'},
-    ember:{root:58.27,scale:[0,3,5,6,10],step:.38,wave:'sawtooth'},
-    null:{root:43.65,scale:[0,1,3,6,8],step:.36,wave:'square'}
+    containment:{transpose:0,wave:'square',tempo:1,cutoff:1900},
+    foundry:{transpose:-2,wave:'sawtooth',tempo:1.04,cutoff:1500},
+    bloom:{transpose:3,wave:'triangle',tempo:1.02,cutoff:2300},
+    cryo:{transpose:5,wave:'square',tempo:1.06,cutoff:2700},
+    void:{transpose:-4,wave:'triangle',tempo:1.1,cutoff:1700},
+    ember:{transpose:-5,wave:'sawtooth',tempo:1.14,cutoff:1400},
+    null:{transpose:-7,wave:'square',tempo:1.2,cutoff:1250}
 };
-let musicTimer=null,musicNextTime=0,musicStep=0,musicGain=null;
+let musicTimer=null,musicNextTime=0,musicStep=0,musicGain=null,musicDelay=null,musicNoise=null;
 function musicVolume(){return soundEnabled?clamp(options.master*options.music,0,1):0;}
+function musicStepSeconds(zone){return 60/MUSIC_BPM/2/zone.tempo;}
+function musicNoiseBuffer(){
+    if(musicNoise)return musicNoise;
+    const length=Math.floor(audioCtx.sampleRate*.3),buffer=audioCtx.createBuffer(1,length,audioCtx.sampleRate),data=buffer.getChannelData(0);
+    for(let i=0;i<length;i++)data[i]=Math.random()*2-1;
+    musicNoise=buffer;return buffer;
+}
 function startMusic(){
     if(!audioCtx||musicTimer)return;
     try{
         audioCtx.resume?.();
-        musicGain=audioCtx.createGain();musicGain.gain.value=musicVolume()*.3;musicGain.connect(audioCtx.destination);
+        musicGain=audioCtx.createGain();musicGain.gain.value=musicVolume()*.22;musicGain.connect(audioCtx.destination);
+        musicDelay=audioCtx.createDelay();musicDelay.delayTime.value=.28;
+        const feedback=audioCtx.createGain();feedback.gain.value=.26;
+        musicDelay.connect(feedback);feedback.connect(musicDelay);musicDelay.connect(musicGain);
         musicNextTime=audioCtx.currentTime+.15;musicStep=0;musicTimer=setInterval(scheduleMusic,70);
-    }catch(e){console.warn('Music skipped',e);musicGain=null;}
+    }catch(e){console.warn('Music skipped',e);musicGain=null;musicDelay=null;}
 }
 function stopMusic(){
     if(musicTimer){clearInterval(musicTimer);musicTimer=null;}
-    if(musicGain){const fading=musicGain;musicGain=null;try{fading.gain.setTargetAtTime(0,audioCtx.currentTime,.12);}catch{}setTimeout(()=>{try{fading.disconnect();}catch{}},700);}
+    const fading=musicGain,fadingDelay=musicDelay;musicGain=null;musicDelay=null;
+    if(fading){try{fading.gain.setTargetAtTime(0,audioCtx.currentTime,.12);}catch{}setTimeout(()=>{try{fading.disconnect();fadingDelay?.disconnect();}catch{}},700);}
 }
 function scheduleMusic(){
     if(!audioCtx||!musicGain)return;
-    const zone=MUSIC_ZONES[arena.themeId]||MUSIC_ZONES.containment;
-    try{musicGain.gain.value=musicVolume()*.3;}catch{return;}
+    const zone=MUSIC_ZONES[arena.themeId]||MUSIC_ZONES.containment,stepSeconds=musicStepSeconds(zone);
+    try{musicGain.gain.value=musicVolume()*.22;}catch{return;}
     let guard=0;
-    while(musicNextTime<audioCtx.currentTime+.3&&guard++<16){playMusicStep(zone,musicStep,musicNextTime);musicNextTime+=zone.step;musicStep++;}
+    while(musicNextTime<audioCtx.currentTime+.35&&guard++<24){playMusicStep(zone,musicStep,musicNextTime,stepSeconds);musicNextTime+=stepSeconds;musicStep++;}
     if(musicNextTime<audioCtx.currentTime)musicNextTime=audioCtx.currentTime+.05;
 }
-function playMusicStep(zone,step,at){
+function musicTone(freq,at,duration,{wave='square',level=.2,cutoff=2200,send=0}={}){
+    if(!musicGain)return;
+    const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),filter=audioCtx.createBiquadFilter();
+    osc.type=wave;osc.frequency.setValueAtTime(freq,at);
+    filter.type='lowpass';filter.frequency.setValueAtTime(cutoff,at);
+    gain.gain.setValueAtTime(.0001,at);gain.gain.exponentialRampToValueAtTime(level,at+.015);gain.gain.exponentialRampToValueAtTime(level*.6,at+duration*.7);gain.gain.exponentialRampToValueAtTime(.0001,at+duration);
+    osc.connect(filter);filter.connect(gain);gain.connect(musicGain);
+    if(send>0&&musicDelay){const sendGain=audioCtx.createGain();sendGain.gain.value=send;gain.connect(sendGain);sendGain.connect(musicDelay);}
+    osc.start(at);osc.stop(at+duration+.03);
+}
+function musicDrum(kind,at){
+    if(!musicGain)return;
+    if(kind==='kick'){
+        const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
+        osc.type='sine';osc.frequency.setValueAtTime(140,at);osc.frequency.exponentialRampToValueAtTime(45,at+.11);
+        gain.gain.setValueAtTime(.9,at);gain.gain.exponentialRampToValueAtTime(.0001,at+.2);
+        osc.connect(gain);gain.connect(musicGain);osc.start(at);osc.stop(at+.22);return;
+    }
+    const snare=kind==='snare',source=audioCtx.createBufferSource(),gain=audioCtx.createGain(),filter=audioCtx.createBiquadFilter();
+    source.buffer=musicNoiseBuffer();
+    filter.type=snare?'bandpass':'highpass';filter.frequency.setValueAtTime(snare?1900:7200,at);
+    gain.gain.setValueAtTime(snare? .34 : .09,at);gain.gain.exponentialRampToValueAtTime(.0001,at+(snare? .17 : .05));
+    source.connect(filter);filter.connect(gain);gain.connect(musicGain);
+    source.start(at);source.stop(at+(snare? .2 : .07));
+}
+function playMusicStep(zone,step,at,stepSeconds){
     if(!musicGain)return;
     try{
-        const beat=step%8;
-        if(beat===0||beat===4){
-            const osc=audioCtx.createOscillator(),g=audioCtx.createGain();
-            osc.type=zone.wave;osc.frequency.setValueAtTime(zone.root,at);
-            g.gain.setValueAtTime(.0001,at);g.gain.linearRampToValueAtTime(.5,at+.03);g.gain.exponentialRampToValueAtTime(.001,at+zone.step*1.7);
-            osc.connect(g);g.connect(musicGain);osc.start(at);osc.stop(at+zone.step*1.8);
-        }
-        if(beat===2||beat===5||beat===7){
-            const semitone=zone.scale[(step*3)%zone.scale.length],octave=beat===7?4:3;
-            const osc=audioCtx.createOscillator(),g=audioCtx.createGain();
-            osc.type='sine';osc.frequency.setValueAtTime(zone.root*Math.pow(2,octave+semitone/12),at);
-            g.gain.setValueAtTime(.0001,at);g.gain.linearRampToValueAtTime(.16,at+.02);g.gain.exponentialRampToValueAtTime(.001,at+zone.step*.9);
-            osc.connect(g);g.connect(musicGain);osc.start(at);osc.stop(at+zone.step);
-        }
+        const pos=step%MUSIC_MELODY.length,bar=Math.floor(pos/8)%MUSIC_PROGRESSION.length,beat=pos%8,chord=MUSIC_PROGRESSION[bar];
+        const pitch=n=>MUSIC_ROOT*Math.pow(2,(zone.transpose+n)/12);
+        if(beat===0||beat===4)musicDrum('kick',at);
+        if(beat===2||beat===6)musicDrum('snare',at);
+        musicDrum('hat',at);
+        if(beat%2===0)musicTone(pitch(chord.root+(beat===4?7:0))/2,at,stepSeconds*1.7,{wave:'triangle',level:.34,cutoff:600});
+        if(beat===0)for(const interval of chord.triad)musicTone(pitch(chord.root+interval),at,stepSeconds*7.4,{wave:'triangle',level:.055,cutoff:1100});
+        const note=MUSIC_MELODY[pos];
+        if(note!=null)musicTone(pitch(note),at,stepSeconds*(MUSIC_MELODY[(pos+1)%MUSIC_MELODY.length]==null?1.85:.92),{wave:zone.wave,level:.17,cutoff:zone.cutoff,send:.32});
     }catch(e){}
 }
 
@@ -465,7 +510,12 @@ function updateRound(dt){
     const bossTimedOut=currentRound%5===0&&roundTimeLeft<=0;
     if(!bossTimedOut&&spawnTimer<=0&&enemiesQueued<enemiesBudget&&getActiveEnemyCount()<getEncounterLimits(currentRound).activeEnemies){const count=Spawner.spawnGroup(currentRound);enemiesQueued+=Math.max(1,count);const phaseFactor=roundPhase==='start' ? 1.2 : roundPhase==='mid' ? .92 : .76,targetPressure=zombies.some(z=>z.active&&z.type==='powerThief') ? .82 : 1;spawnTimer=spawnRate*phaseFactor*targetPressure*(.86+Math.random()*.28);}
     const bossRound=currentRound%5===0,bossAlive=bossForRound&&bossForRound.active,regularAlive=zombies.some(z=>z.active&&!z.isBoss&&!z.isMiniBoss)||Spawner.warnings.length>0;
-    if(!roundEnded&&((!bossRound&&roundTimeLeft<=0)||(bossRound&&!bossAlive&&(roundTimeLeft<=0||!regularAlive))))endRound();
+    // Ronda despejada: ya se gastó el presupuesto de la ronda y no queda nada vivo ni por aparecer.
+    const arenaCleared=enemiesBudget>0&&enemiesQueued>=enemiesBudget&&!zombies.some(z=>z.active)&&Spawner.warnings.length===0;
+    if(!roundEnded&&((!bossRound&&(roundTimeLeft<=0||arenaCleared))||(bossRound&&!bossAlive&&(roundTimeLeft<=0||!regularAlive)))){
+        if(!bossRound&&arenaCleared&&roundTimeLeft>0)showNotification(t('hud.arenaCleared'));
+        endRound();
+    }
 }
 function endRound(){
     roundEnded=true;Input.reset();if(player.isDashing)player.finishDash(false);gameState='UPGRADING';updateAdaptiveDifficulty();restoreStolenPower();player.noJump=false;saveBestiary();

@@ -34,11 +34,20 @@ elements.set('gameCanvas', canvas);
 global.Event = class { constructor(type){this.type=type;} };
 global.CustomEvent = class extends Event { constructor(type, options={}){super(type);this.detail=options.detail;} };
 global.window = new Target();
-window.innerWidth=1280; window.innerHeight=720;
+window.innerWidth=1280; window.innerHeight=720; window.__audioVoices=0;
 // AudioContext mínimo pero con la forma real: nodos, rampas y destino conectables.
 const fakeAudioParam=()=>({value:0,setValueAtTime(){return this;},linearRampToValueAtTime(){return this;},exponentialRampToValueAtTime(){return this;},setTargetAtTime(){return this;}});
-const fakeAudioNode=()=>({gain:fakeAudioParam(),frequency:fakeAudioParam(),type:'sine',connect(){},disconnect(){},start(){},stop(){}});
-window.AudioContext=class{ constructor(){ this.currentTime=0; this.destination=fakeAudioNode(); } createGain(){ return fakeAudioNode(); } createOscillator(){ return fakeAudioNode(); } resume(){} };
+const fakeAudioNode=()=>({gain:fakeAudioParam(),frequency:fakeAudioParam(),delayTime:fakeAudioParam(),type:'sine',buffer:null,connect(){},disconnect(){},start(){},stop(){}});
+window.AudioContext=class{
+  constructor(){ this.currentTime=0; this.sampleRate=44100; this.destination=fakeAudioNode(); }
+  createGain(){ return fakeAudioNode(); }
+  createOscillator(){ window.__audioVoices++; return fakeAudioNode(); }
+  createBiquadFilter(){ return fakeAudioNode(); }
+  createBufferSource(){ window.__audioVoices++; return fakeAudioNode(); }
+  createDelay(){ return fakeAudioNode(); }
+  createBuffer(channels,length){ const data=new Float32Array(length); return { length, getChannelData(){ return data; } }; }
+  resume(){}
+};
 window.webkitAudioContext=window.AudioContext;
 global.document = new Target();
 document.body = new FakeElement('body');
@@ -116,7 +125,18 @@ vm.runInThisContext(`
   resetEntities(); configureRound(45); const mini2=queueDirectSpawn('miniboss',220,220);if(mini2.bestiaryId===firstMini)throw new Error('Miniboss repetido consecutivamente');
   resetEntities(); configureRound(40); const boss=queueDirectSpawn('boss',300,300); if(!boss.displayName||boss.phase!==1)throw new Error('Boss sin variante');const firstBoss=boss.bestiaryId;
   resetEntities(); configureRound(50); const boss2=queueDirectSpawn('boss',300,300);if(boss2.bestiaryId===firstBoss)throw new Error('Boss repetido consecutivamente');
-  startMusic(); if(!musicTimer)throw new Error('La música no arrancó'); stopMusic(); if(musicTimer)throw new Error('La música no se detuvo');
+  // La ronda debe cerrarse al despejar la arena, pero sólo tras gastar el presupuesto de la ronda.
+  resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=3; enemiesQueued=3;
+  update(16,performance.now()); if(!roundEnded)throw new Error('La ronda no terminó al despejar la arena');
+  resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=3; enemiesQueued=1;
+  update(16,performance.now()); if(roundEnded)throw new Error('La ronda terminó antes de gastar el presupuesto');
+  resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
+  update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
+
+  startMusic(); if(!musicTimer)throw new Error('La música no arrancó');
+  window.__audioVoices=0; scheduleMusic(); if(window.__audioVoices===0)throw new Error('El secuenciador no generó voces');
+  if(MUSIC_MELODY.filter(n=>n!=null).some(n=>![0,2,3,5,7,8,10].includes(((n%12)+12)%12)))throw new Error('Melodía fuera de la escala menor');
+  stopMusic(); if(musicTimer)throw new Error('La música no se detuvo');
 `);
 
 console.log('Smoke test completado: dash dirigido por cursor, cámara/escala, colisiones, mejoras, FPS y sistemas de DEADBOX válidos.');
