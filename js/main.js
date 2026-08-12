@@ -683,7 +683,7 @@ function loadJSON(key){try{const raw=localStorage.getItem(key);return raw?JSON.p
 function loadRecords(){const d=loadJSON(RECORD_KEY)||{};return{highScore:finite(d.highScore,finite(localStorage.getItem('deadboxHighScore')||localStorage.getItem('arenaHighScore'),0,0),0),highRound:finite(d.highRound,finite(localStorage.getItem('deadboxHighScoreRound')||localStorage.getItem('arenaHighScoreRound'),1,1),1),highKills:finite(d.highKills,0,0),bestCombo:finite(d.bestCombo,0,0),soundEnabled:d.soundEnabled!==false,byMode:d.byMode&&typeof d.byMode==='object'?d.byMode:{}};}
 function updateRecords(force=false){
     const before=JSON.stringify(records),mode=runInfo.advanced?`advanced-r${runInfo.startRound}`:'standard',key=`${mode}-${runInfo.difficulty}`,entry=records.byMode[key]||{highScore:0,highRound:runInfo.startRound,highKills:0,bestCombo:0,bestTime:0};entry.highScore=Math.max(entry.highScore,Math.floor(score));entry.highRound=Math.max(entry.highRound,currentRound);entry.highKills=Math.max(entry.highKills,kills);entry.bestCombo=Math.max(entry.bestCombo,bestCombo);entry.bestTime=Math.max(entry.bestTime,Date.now()-runInfo.startedAt);records.byMode[key]=entry;if(!runInfo.advanced){records.highScore=Math.max(records.highScore,Math.floor(score));records.highRound=Math.max(records.highRound,currentRound);records.highKills=Math.max(records.highKills,kills);records.bestCombo=Math.max(records.bestCombo,bestCombo);}unlockStartingRounds(currentRound);records.soundEnabled=soundEnabled;
-    if(force||JSON.stringify(records)!==before){localStorage.setItem(RECORD_KEY,JSON.stringify(records));localStorage.setItem('deadboxHighScore',String(records.highScore));localStorage.setItem('deadboxHighScoreRound',String(records.highRound));document.getElementById('high-score-display').textContent=t('records.line',{score:records.highScore,round:records.highRound});}
+    if(force||JSON.stringify(records)!==before){localStorage.setItem(RECORD_KEY,JSON.stringify(records));localStorage.setItem('deadboxHighScore',String(records.highScore));localStorage.setItem('deadboxHighScoreRound',String(records.highRound));refreshMenuStats();}
 }
 function saveProgress(reason='auto'){
     if(!player)return;updateRecords(false);const data={version:3,reason,savedAt:Date.now(),sessionActive:gameState!=='GAME_OVER',lastCompletedRound:roundEnded?currentRound:Math.max(0,currentRound-1),round:currentRound,score,kills,bestCombo,health:player.health,maxHealth:player.maxHealth,weaponLevel:player.weaponLevel,bonusDamage:player.bonusDamage,fireRate:player.fireRate,speed:player.speed,jumpCooldown:player.jumpCooldown,projectileSize:player.projectileSize,damageReduction:player.damageReduction,shieldHits:player.shieldHits,dashDistance:player.dashDistance,dashSpeed:player.dashSpeed,dashCooldown:player.dashCooldown,dashInvulnerability:player.dashInvulnerability,maxDashCharges:player.maxDashCharges,shockDash:player.shockDash,trailBurn:player.trailBurn,adaptivePressure,roundsWithoutDamage,records,runInfo,difficulty:selectedDifficulty,startRound:runInfo.startRound};
@@ -740,8 +740,8 @@ function updateTutorial(dt){
 }
 function runScrapSoFar(){return scrapForRun(score,Math.max(0,currentRound-(runInfo?.startRound||1)));}
 function refreshMenuStats(){
-    document.getElementById('high-score-display').textContent=t('records.line',{score:records.highScore,round:records.highRound});
-    document.getElementById('scrap-display').textContent=t('records.scrapTotal',{amount:gameMeta.scrap});
+    document.getElementById('high-score-display').textContent=t('records.bestValue',{score:records.highScore,round:records.highRound});
+    document.getElementById('scrap-display').textContent=gameMeta.scrap;
 }
 
 let workshopSlot='box';
@@ -809,9 +809,11 @@ function enhanceSelect(select){
     const wrap=document.createElement('div');wrap.className='vs';
     select.parentNode.insertBefore(wrap,select);wrap.appendChild(select);
     const value=document.createElement('button');value.type='button';value.className='vs-value';
-    const list=document.createElement('div');list.className='vs-list hidden';
+    // La visibilidad de la lista depende solo de .vs.open; con dos fuentes de verdad, cerrar
+    // desde fuera quitaba la clase open pero dejaba la lista en pantalla.
+    const list=document.createElement('div');list.className='vs-list';
     wrap.appendChild(value);wrap.appendChild(list);
-    const close=()=>{wrap.classList.remove('open');list.classList.add('hidden');};
+    const close=()=>wrap.classList.remove('open');
     const render=()=>{
         value.textContent=select.options[select.selectedIndex]?.textContent||'';
         list.innerHTML='';
@@ -832,7 +834,7 @@ function enhanceSelect(select){
         event.stopPropagation();
         const open=wrap.classList.contains('open');
         closeAllSelects();
-        if(open)close();else{wrap.classList.add('open');list.classList.remove('hidden');}
+        if(!open)wrap.classList.add('open');
     });
     select.addEventListener('change',render);
     new MutationObserver(render).observe(select,{childList:true,subtree:true,attributes:true,characterData:true});
@@ -867,7 +869,8 @@ function bindOption(id,key,event='input',preview=null){document.getElementById(i
 function setupRunSelectors(){
     unlockStartingRounds(records.highRound);const difficulty=document.getElementById('difficulty-select'),starting=document.getElementById('starting-round');difficulty.innerHTML=DIFFICULTY_VALUES.map(value=>`<option value="${value}">${value}% · ${t(value<100?'setup.easier':value===100?'setup.normal':'setup.harder')}</option>`).join('');difficulty.value=String(selectedDifficulty);starting.innerHTML=START_ROUNDS.map(round=>`<option value="${round}" ${round>gameMeta.unlockedStartRound?'disabled':''}>${t('setup.round',{round})}</option>`).join('');if(selectedStartRound>gameMeta.unlockedStartRound)setSelectedStartRound(1);starting.value=String(selectedStartRound);renderRunSetup();
 }
-function renderRunSetup(){document.getElementById('difficulty-description').textContent=t(difficultyDescriptionKey());document.getElementById('start-summary').innerHTML=`<span>${t('setup.startingRound')}</span><strong>${t('setup.round',{round:selectedStartRound})}</strong><span>${t('setup.difficulty')}</span><strong>${selectedDifficulty}%</strong><span>${t('setup.loadout')}</span><strong>${selectedStartRound>1?t('setup.generated'):t('setup.standard')}</strong><span>${t('setup.eligibility')}</span><strong>${selectedStartRound>1?t('setup.advanced'):t('setup.standard')}</strong>`;}
+function renderRunSetup(){document.getElementById('difficulty-description').textContent=t(difficultyDescriptionKey());// Sólo los valores derivados: la ronda y la dificultad ya se leen en sus propios selectores.
+document.getElementById('start-summary').innerHTML=`<span>${t('setup.loadout')}</span><strong>${selectedStartRound>1?t('setup.generated'):t('setup.standard')}</strong><span>${t('setup.eligibility')}</span><strong>${selectedStartRound>1?t('setup.advanced'):t('setup.standard')}</strong>`;}
 
 soundEnabled=records.soundEnabled;refreshMenuStats();
 document.getElementById('btn-start').addEventListener('click',initGame);document.getElementById('btn-continue').addEventListener('click',recoverGame);document.getElementById('btn-restart').addEventListener('click',initGame);

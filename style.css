@@ -6,24 +6,27 @@
     font-display: swap;
 }
 
-/* DEADBOX se ve como una instalación de contención: chapa oscura, ámbar de señalización y
-   esquinas cortadas en vez de tarjetas redondeadas genéricas. */
+/* DEADBOX se ve como una instalación de contención: chapa oscura y esquinas cortadas en vez de
+   tarjetas redondeadas genéricas. Paleta fría y de poca saturación, donde el contraste lo da el
+   valor y no el color: un acento de acero para lo interactivo, latón apagado sólo para la
+   chatarra y rojo sólo para el peligro. */
 :root {
-    --bg-color: #070a10;
-    --panel: #0c131e;
-    --panel-raised: #111a28;
-    --line: #1e2a3c;
-    --line-hot: #3a5273;
-    --text-color: #e9eff8;
-    --text-muted: #7d8ea6;
-    --accent: #f5a524;
-    --accent-dim: #7a5210;
-    --signal: #22d3ee;
-    --health: #ef4444;
-    --health-bg: #3b0a0a;
+    --bg-color: #05070a;
+    --panel: #0b0e13;
+    --panel-raised: #12171f;
+    --line: #1b212b;
+    --line-hot: #2c3947;
+    --text-color: #e7e9ed;
+    --text-muted: #79828f;
+    --accent: #9db9c9;
+    --accent-dim: #3d4c58;
+    --signal: #7fd4d0;
+    --brass: #b6975f;
+    --health: #c2554c;
+    --health-bg: #2c0f0e;
     --notch: 9px;
-    --glass-bg: rgba(10, 16, 26, .86);
-    --glass-border: rgba(122, 150, 186, .22);
+    --glass-bg: rgba(9, 12, 17, .88);
+    --glass-border: rgba(140, 158, 178, .18);
 }
 
 /* Esquina recortada: la firma visual de todos los paneles y botones. */
@@ -227,7 +230,7 @@ canvas {
     font-size: clamp(2.2rem, 6vw, 4rem);
     font-weight: 900;
     color: var(--text-color);
-    text-shadow: 4px 4px 0 #0a1018, 0 0 34px rgba(245,165,36,.16);
+    text-shadow: 4px 4px 0 #05070a, 0 0 40px rgba(157,185,201,.12);
     padding-bottom: 13px;
     margin-bottom: 4px;
 }
@@ -243,7 +246,7 @@ canvas {
     opacity: .82;
 }
 
-#score { color: #fbbf24; }
+#score { color: var(--text-color); }
 #combo { color: #a78bfa; font-size: 1rem; margin-top: 5px; }
 
 /* Screens (Start / Game Over / Pausa / Mejoras) */
@@ -304,7 +307,7 @@ button::before {
     position: absolute;
     left: 0; top: 0; bottom: 0;
     width: 0;
-    background: linear-gradient(90deg, rgba(245,165,36,.28), transparent);
+    background: linear-gradient(90deg, rgba(157,185,201,.16), transparent);
     transition: width .16s ease;
     pointer-events: none;
 }
@@ -383,27 +386,85 @@ button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 }
 
 #notifications { top: 15% !important; font-size: 1rem !important; font-weight: 700 !important; text-shadow: none !important; }
-.controls-line { font-size: .8rem; margin-bottom: 10px; color: var(--text-muted); letter-spacing: .04em; }
-.record-line { color: var(--accent); font-weight: 700; font-size: .88rem; margin-bottom: 4px; letter-spacing: .08em; }
+/* Menú principal: composición a dos columnas en vez de una pila de botones idénticos. */
+.start-grid {
+    width: min(1040px, 92vw);
+    display: grid;
+    grid-template-columns: 1fr minmax(300px, 380px);
+    gap: clamp(28px, 5vw, 68px);
+    align-items: center;
+}
+
+.start-brand { text-align: left; }
+.start-brand .game-logo { text-align: left; }
+.start-brand .game-logo::after { left: 0; transform: none; width: 190px; }
+
+.controls-line { font-size: .74rem; margin: 14px 0 22px; color: var(--text-muted); letter-spacing: .04em; max-width: 34ch; line-height: 1.6; }
+
+/* Récords como ficha de datos, no como frases sueltas. */
+.start-records { display: flex; gap: 34px; margin-bottom: 26px; }
+.start-records div { display: grid; gap: 3px; }
+.start-records dt { font-size: .62rem; text-transform: uppercase; letter-spacing: .2em; color: var(--text-muted); }
+.start-records dd { font-size: 1.35rem; font-weight: 700; color: var(--text-color); font-variant-numeric: tabular-nums; }
+.start-records div:last-child dd { color: var(--brass); }
+
+.start-actions { display: flex; gap: 10px; margin-bottom: 20px; }
+button.primary { padding: 15px 46px; font-size: 1rem; background: var(--panel-raised); border-left-color: var(--accent); color: #fff; }
+button.primary:hover { background: #1a222c; }
+
+/* Acciones secundarias como enlaces en línea: no compiten con Jugar. */
+.start-links { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 16px; }
+button.link {
+    padding: 6px 12px 6px 0;
+    font-size: .68rem;
+    letter-spacing: .18em;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    color: var(--text-muted);
+    clip-path: none;
+    margin-right: 14px;
+}
+button.link::before { content: none; }
+button.link:hover { background: none; color: var(--accent); border-bottom-color: var(--accent); }
+
+/* Panel de configuración: una tarjeta con su propia cabecera. */
+.start-briefing {
+    padding: 24px 22px;
+    border: 1px solid var(--line);
+    border-top: 2px solid var(--line-hot);
+    background: rgba(11, 14, 19, .74);
+    clip-path: polygon(var(--notch) 0, 100% 0, 100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%, 0 100%, 0 var(--notch));
+}
+.briefing-title { font-size: .66rem; text-transform: uppercase; letter-spacing: .28em; color: var(--text-muted); margin-bottom: 18px; }
+.briefing-title::before { content: '▚ '; color: var(--accent); }
+
+@media (max-width: 880px) {
+    .start-grid { grid-template-columns: 1fr; gap: 26px; }
+    .start-brand, .start-brand .game-logo { text-align: center; }
+    .start-brand .game-logo::after { left: 50%; transform: translateX(-50%); }
+    .controls-line { max-width: none; }
+    .start-records, .start-actions, .start-links { justify-content: center; }
+}
 .menu-stack { width: 262px; display: flex; flex-direction: column; gap: 8px; }
 .menu-stack button { width: 100%; padding: 10px 22px; font-size: .86rem; }
 .menu-stack.compact { margin-bottom: 18px; }
-.language-inline { margin-top: 20px; display: grid; grid-template-columns: auto 150px; align-items: center; gap: 12px; color: var(--text-muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .16em; }
-.run-setup { width: min(430px, 88vw); display: grid; gap: 9px; margin: 6px 0 12px; }
-.run-setup label { display: grid; grid-template-columns: 1fr 168px; align-items: center; gap: 14px; color: var(--text-muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .16em; }
-.setup-description { min-height: 2.2em; margin: 0; color: #8ea0b8; font-size: .76rem; line-height: 1.35; }
+.language-inline { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); display: grid; gap: 6px; color: var(--text-muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .2em; }
+.run-setup { width: 100%; display: grid; gap: 12px; }
+.run-setup label { display: grid; gap: 6px; color: var(--text-muted); font-size: .62rem; text-transform: uppercase; letter-spacing: .2em; }
+.setup-description { min-height: 2.2em; margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--line); color: #9aa5b3; font-size: .72rem; line-height: 1.5; }
 /* Ficha técnica de la partida: etiquetas en versalitas y valores alineados, no una tabla genérica. */
 .start-summary {
     display: grid;
     grid-template-columns: 1fr auto;
     gap: 7px 18px;
-    padding: 11px 15px;
-    margin-bottom: 4px;
-    border: 1px solid var(--line);
-    border-left: 3px solid var(--accent-dim);
-    background: rgba(10,17,28,.72);
+    padding: 11px 14px;
+    margin-top: 14px;
+    border: 0;
+    border-left: 2px solid var(--accent-dim);
+    background: rgba(255,255,255,.02);
     color: var(--text-muted);
-    font-size: .68rem;
+    font-size: .64rem;
     text-transform: uppercase;
     letter-spacing: .12em;
     text-align: left;
@@ -448,6 +509,7 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
 .vs-value:hover { border-left-color: var(--accent); }
 
 .vs-list {
+    display: none;
     position: absolute;
     left: 0; right: 0; top: calc(100% + 4px);
     max-height: 260px;
@@ -458,6 +520,7 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
     z-index: 40;
     clip-path: polygon(var(--notch) 0, 100% 0, 100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%, 0 100%, 0 var(--notch));
 }
+.vs.open .vs-list { display: block; }
 .vs-option {
     width: 100%;
     padding: 9px 12px;
@@ -493,9 +556,8 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
 .bestiary-entry h3 { font-size: 1.05rem; color: #e2e8f0; margin-bottom: 4px; }
 .entry-meta { display: flex; justify-content: space-between; color: #94a3b8; font-size: .72rem; margin-bottom: 9px; }
 .bestiary-entry p { font-size: .78rem; line-height: 1.35; margin: 5px 0; color: #aebccd; }
-.scrap-line { color: var(--accent); font-weight: 700; font-size: .8rem; margin-bottom: 10px; letter-spacing: .1em; opacity: .85; }
-.setup-hint { font-size: .74rem; line-height: 1.4; color: var(--text-muted); margin: 0; }
-#run-scrap { color: #fbbf24; font-size: .95rem; font-weight: 700; margin-top: 4px; }
+.setup-hint { font-size: .7rem; line-height: 1.5; color: var(--text-muted); margin: 12px 0 0; }
+#run-scrap { color: var(--brass); font-size: .95rem; font-weight: 700; margin-top: 4px; }
 
 /* Aviso del tutorial de la primera ronda */
 .tutorial-hint {
@@ -523,7 +585,7 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
 
 /* Taller de aspectos */
 .panel-header-actions { display: flex; align-items: center; gap: 14px; }
-.scrap-badge { padding: 6px 14px; border: 1px solid rgba(251,191,36,.45); border-radius: 999px; background: rgba(251,191,36,.1); color: #fbbf24; font-size: .85rem; font-weight: 700; white-space: nowrap; }
+.scrap-badge { padding: 6px 14px; border: 1px solid rgba(182,151,95,.4); border-radius: 0; background: rgba(182,151,95,.08); color: var(--brass); font-size: .85rem; font-weight: 700; white-space: nowrap; }
 .workshop-body { width: 100%; display: grid; grid-template-columns: 260px 1fr; gap: 24px; align-items: start; overflow: hidden; }
 .workshop-preview { padding: 18px; border: 1px solid var(--line); border-top: 2px solid var(--accent-dim); border-radius: 0; background: var(--panel); text-align: center; clip-path: polygon(var(--notch) 0, 100% 0, 100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%, 0 100%, 0 var(--notch)); }
 .workshop-preview canvas { width: 100%; height: auto; }
@@ -543,7 +605,7 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
 .cosmetic-name { color: #e2e8f0; font-weight: 700; }
 .cosmetic-action { font-size: .72rem; color: #94a3b8; }
 .cosmetic-card.equipped .cosmetic-action { color: #34d399; }
-.cosmetic-card.affordable .cosmetic-action { color: #fbbf24; }
+.cosmetic-card.affordable .cosmetic-action { color: var(--brass); }
 
 @media (max-width: 860px) {
     .workshop-body { grid-template-columns: 1fr; }
@@ -610,7 +672,7 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
 #boss-bar {
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, #ef4444, #f97316, #fbbf24);
+    background: linear-gradient(90deg, #7a2a26, #c2554c, #d98a72);
     transition: width .15s linear;
 }
 

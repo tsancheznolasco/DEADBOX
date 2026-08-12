@@ -52,25 +52,36 @@
             </div>
             
             <div id="start-screen" class="screen">
-                <h1 class="game-logo">DEADBOX</h1>
-                <p class="controls-line" data-i18n="menu.controls">WASD Move · Mouse Aim · Space Jump · Shift Dash · Q Power · Esc Pause</p>
-                <p id="high-score-display" class="record-line">Best 0 · Round 1</p>
-                <p id="scrap-display" class="scrap-line">0 Scrap</p>
-                <div class="run-setup">
-                    <label><span data-i18n="setup.startingRound">Starting Round</span><select id="starting-round"></select></label>
-                    <label><span data-i18n="setup.difficulty">Difficulty</span><select id="difficulty-select"></select></label>
-                    <p class="setup-hint" data-i18n="setup.difficultyHint">100% is the normal game. Lower is easier, higher is harder.</p>
-                    <p id="difficulty-description" class="setup-description"></p>
-                    <div id="start-summary" class="start-summary"></div>
+                <div class="start-grid">
+                    <div class="start-brand">
+                        <h1 class="game-logo">DEADBOX</h1>
+                        <p class="controls-line" data-i18n="menu.controls">WASD Move · Mouse Aim · Space Jump · Shift Dash · Q Power · Esc Pause</p>
+                        <dl class="start-records">
+                            <div><dt data-i18n="records.bestLabel">Best</dt><dd id="high-score-display">0</dd></div>
+                            <div><dt data-i18n="records.scrapLabel">Scrap</dt><dd id="scrap-display">0</dd></div>
+                        </dl>
+                        <div class="start-actions">
+                            <button id="btn-start" class="primary" data-i18n="menu.play">Play</button>
+                            <button id="btn-continue" class="hidden" data-i18n="menu.continue">Continue</button>
+                        </div>
+                        <nav class="start-links">
+                            <button id="btn-workshop" class="link" data-i18n="menu.workshop">Workshop</button>
+                            <button id="btn-bestiary" class="link" data-i18n="menu.bestiary">Bestiary</button>
+                            <button id="btn-options" class="link" data-i18n="menu.options">Options</button>
+                        </nav>
+                    </div>
+                    <aside class="start-briefing">
+                        <h2 class="briefing-title" data-i18n="setup.briefing">Run Setup</h2>
+                        <div class="run-setup">
+                            <label><span data-i18n="setup.startingRound">Starting Round</span><select id="starting-round"></select></label>
+                            <label><span data-i18n="setup.difficulty">Difficulty</span><select id="difficulty-select"></select></label>
+                        </div>
+                        <p class="setup-hint" data-i18n="setup.difficultyHint">100% is the normal game. Lower is easier, higher is harder.</p>
+                        <p id="difficulty-description" class="setup-description"></p>
+                        <div id="start-summary" class="start-summary"></div>
+                        <label class="language-inline"><span data-i18n="menu.language">Language</span><select id="language-main"><option value="en">English</option><option value="es">Español</option></select></label>
+                    </aside>
                 </div>
-                <div class="menu-stack">
-                    <button id="btn-start" data-i18n="menu.play">Play</button>
-                    <button id="btn-continue" class="hidden" data-i18n="menu.continue">Continue</button>
-                    <button id="btn-workshop" data-i18n="menu.workshop">Workshop</button>
-                    <button id="btn-bestiary" data-i18n="menu.bestiary">Bestiary</button>
-                    <button id="btn-options" data-i18n="menu.options">Options</button>
-                </div>
-                <label class="language-inline"><span data-i18n="menu.language">Language</span><select id="language-main"><option value="en">English</option><option value="es">Español</option></select></label>
             </div>
 
             <div id="loadout-screen" class="screen hidden">
