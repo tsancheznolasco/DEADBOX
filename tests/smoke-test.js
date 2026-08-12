@@ -60,7 +60,7 @@ document.exitFullscreen = () => Promise.resolve();
 global.localStorage = {data:new Map(),getItem(k){return this.data.has(k)?this.data.get(k):null;},setItem(k,v){this.data.set(k,String(v));},removeItem(k){this.data.delete(k);}};
 global.requestAnimationFrame = () => 1;
 
-for (const file of ['pool.js','particle.js','projectile.js','input.js','i18n.js','content.js','difficulty.js','zombie.js','player.js','spawner.js','main.js']) {
+for (const file of ['cosmetics.js','pool.js','particle.js','projectile.js','input.js','i18n.js','content.js','difficulty.js','zombie.js','player.js','spawner.js','main.js']) {
   vm.runInThisContext(fs.readFileSync(`${root}/js/${file}`,'utf8'), {filename:file});
 }
 
@@ -132,6 +132,31 @@ vm.runInThisContext(`
   update(16,performance.now()); if(roundEnded)throw new Error('La ronda terminó antes de gastar el presupuesto');
   resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
   update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
+
+  // Aspectos: catálogo coherente, compra/equipamiento correctos y sin efecto sobre el juego.
+  for(const slot of COSMETIC_SLOTS){
+    const list=COSMETICS[slot];
+    if(new Set(list.map(i=>i.id)).size!==list.length)throw new Error('Ids de aspecto repetidos en '+slot);
+    if(list[0].price!==0)throw new Error('El aspecto por defecto de '+slot+' debe ser gratuito');
+    if(list.some(i=>!i.color))throw new Error('Aspecto sin color en '+slot);
+    if(!cosmeticOwned(slot,list[0].id))throw new Error('El aspecto gratuito debe poseerse desde el inicio');
+  }
+  const paid=COSMETICS.box.find(i=>i.price>0);
+  gameMeta.scrap=0;
+  if(buyCosmetic('box',paid.id))throw new Error('Se compró un aspecto sin chatarra suficiente');
+  gameMeta.scrap=paid.price;
+  if(!buyCosmetic('box',paid.id))throw new Error('No se pudo comprar con chatarra suficiente');
+  if(gameMeta.scrap!==0)throw new Error('La compra no descontó el precio');
+  if(buyCosmetic('box',paid.id))throw new Error('Se compró dos veces el mismo aspecto');
+  if(!equipCosmetic('box',paid.id)||gameMeta.equipped.box!==paid.id)throw new Error('No se equipó un aspecto poseído');
+  if(equipCosmetic('box','__inexistente__'))throw new Error('Se equipó un aspecto inexistente');
+  if(scrapForRun(1000,4)!==30)throw new Error('Recompensa de chatarra incorrecta');
+  if(awardScrap(25)!==25||gameMeta.scrap!==25)throw new Error('La chatarra no se acumuló');
+  // Un guardado corrupto no debe dejar equipado algo no comprado.
+  const repaired=normalizeCosmetics({scrap:-5,owned:{box:['gold']},equipped:{box:'void'}});
+  if(repaired.scrap!==0)throw new Error('La chatarra negativa no se saneó');
+  if(repaired.equipped.box!==COSMETICS.box[0].id)throw new Error('Quedó equipado un aspecto no poseído');
+  if(!repaired.owned.box.includes('gold'))throw new Error('Se perdió un aspecto comprado');
 
   // Los efectos deben sonar y mantenerse fuera de la banda grave donde el bajo los enmascara.
   soundEnabled=true;

@@ -18,6 +18,7 @@ gameMeta.unlockedStartRound=Math.max(1,Number(gameMeta.unlockedStartRound)||1);
 gameMeta.recentBosses=Array.isArray(gameMeta.recentBosses)?gameMeta.recentBosses.slice(-5):[];
 gameMeta.recentMinibosses=Array.isArray(gameMeta.recentMinibosses)?gameMeta.recentMinibosses.slice(-5):[];
 gameMeta.recordsByMode=gameMeta.recordsByMode&&typeof gameMeta.recordsByMode==='object'?gameMeta.recordsByMode:{};
+normalizeCosmetics(gameMeta);
 function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(gameMeta));}catch{}}
 
 let selectedDifficulty=gameMeta.selectedDifficulty;

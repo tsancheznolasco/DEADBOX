@@ -55,6 +55,7 @@ const bossHUD = document.getElementById('boss-hud');
 const bossBar = document.getElementById('boss-bar');
 const bossName = document.getElementById('boss-name');
 const uiBestiaryScreen = document.getElementById('bestiary-screen');
+const uiWorkshopScreen = document.getElementById('workshop-screen');
 const uiOptionsScreen = document.getElementById('options-screen');
 
 let player;
@@ -697,7 +698,9 @@ function recoverGame(){
     setSelectedDifficulty(finite(d.difficulty,d.runInfo?.difficulty||100,1,500));runInfo=d.runInfo&&typeof d.runInfo==='object'?d.runInfo:{startRound:finite(d.startRound,1,1),difficulty:selectedDifficulty,advanced:finite(d.startRound,1,1)>1,startedAt:Date.now()};score=finite(d.score,0,0);kills=finite(d.kills,0,0);bestCombo=finite(d.bestCombo,0,0);adaptivePressure=finite(d.adaptivePressure,0,0,1);roundsWithoutDamage=finite(d.roundsWithoutDamage,0,0,20);combo=0;resetEntities();currentRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1);
     uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.add('hidden');uiHUD.classList.remove('hidden');startCountdown(()=>{configureRound(currentRound);gameState='PLAYING';lastTime=performance.now();saveProgress('recovered');startMusic();});
 }
-function gameOver(){Input.reset();stopMusic();if(player?.isDashing)player.finishDash(false);gameState='GAME_OVER';updateRecords(true);saveProgress('game-over');const d=getSafeSave();if(d){d.sessionActive=false;localStorage.setItem(SAVE_KEY,JSON.stringify(d));}uiHUD.classList.add('hidden');uiGameOverScreen.classList.remove('hidden');document.getElementById('final-stats').textContent=t('gameOver.stats',{round:currentRound,score:Math.floor(score),kills});}
+function gameOver(){Input.reset();stopMusic();if(player?.isDashing)player.finishDash(false);gameState='GAME_OVER';updateRecords(true);saveProgress('game-over');const d=getSafeSave();if(d){d.sessionActive=false;localStorage.setItem(SAVE_KEY,JSON.stringify(d));}uiHUD.classList.add('hidden');uiGameOverScreen.classList.remove('hidden');
+    const earned=awardScrap(scrapForRun(score,Math.max(0,currentRound-(runInfo?.startRound||1))));
+    document.getElementById('final-stats').textContent=`${t('gameOver.stats',{round:currentRound,score:Math.floor(score),kills})} · ${t('gameOver.scrap',{amount:earned})}`;}
 
 function showNotification(text){const el=document.getElementById('notifications');el.textContent=text;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1800);}
 let pickupToastTimer=null;
@@ -714,6 +717,61 @@ function renderBestiary(){
 function setupBestiaryFilters(){const select=document.getElementById('bestiary-category'),categories=['all',...new Set(Object.values(ENEMY_CATALOG).map(e=>e.category))];select.innerHTML=categories.map(c=>`<option value="${c}">${t(`categories.${c}`)}</option>`).join('');}
 function openBestiary(){uiStartScreen.classList.add('hidden');uiBestiaryScreen.classList.remove('hidden');setupBestiaryFilters();renderBestiary();}
 function closeBestiary(){uiBestiaryScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');}
+let workshopSlot='box';
+const workshopSelection={};
+function openWorkshop(){
+    uiStartScreen.classList.add('hidden');uiWorkshopScreen.classList.remove('hidden');
+    for(const slot of COSMETIC_SLOTS)workshopSelection[slot]=gameMeta.equipped[slot];
+    renderWorkshop();
+}
+function closeWorkshop(){uiWorkshopScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');}
+function renderWorkshop(){
+    document.getElementById('workshop-scrap').textContent=t('workshop.scrap',{amount:gameMeta.scrap});
+    for(const tab of document.querySelectorAll('.workshop-tab'))tab.classList.toggle('active',tab.dataset.slot===workshopSlot);
+    const grid=document.getElementById('workshop-grid');
+    grid.innerHTML=COSMETICS[workshopSlot].map(item=>{
+        const owned=cosmeticOwned(workshopSlot,item.id),equipped=gameMeta.equipped[workshopSlot]===item.id;
+        const action=equipped?t('workshop.equipped'):owned?t('workshop.equip'):gameMeta.scrap>=item.price?t('workshop.buy',{price:item.price}):t('workshop.locked',{price:item.price});
+        const state=equipped?'equipped':owned?'owned':gameMeta.scrap>=item.price?'affordable':'locked';
+        return `<button class="cosmetic-card ${state} ${workshopSelection[workshopSlot]===item.id?'selected':''}" data-id="${item.id}">
+            <span class="cosmetic-swatch" style="background:${item.color};box-shadow:0 0 14px ${item.color}"></span>
+            <span class="cosmetic-name">${t(`cosmetics.${workshopSlot}.${item.id}`)}</span>
+            <span class="cosmetic-action">${action}</span>
+        </button>`;
+    }).join('');
+    for(const card of grid.querySelectorAll('.cosmetic-card'))card.onclick=()=>handleWorkshopClick(card.dataset.id);
+    drawWorkshopPreview();
+}
+function handleWorkshopClick(id){
+    workshopSelection[workshopSlot]=id;
+    if(cosmeticOwned(workshopSlot,id))equipCosmetic(workshopSlot,id);
+    else if(buyCosmetic(workshopSlot,id))equipCosmetic(workshopSlot,id);
+    renderWorkshop();
+}
+function drawWorkshopPreview(){
+    const canvas=document.getElementById('workshop-canvas'),c=canvas?.getContext?.('2d');if(!c)return;
+    const box=cosmeticItem('box',workshopSelection.box),gun=cosmeticItem('gun',workshopSelection.gun),bullet=cosmeticItem('bullet',workshopSelection.bullet);
+    c.clearRect(0,0,canvas.width,canvas.height);
+    const cx=76,cy=canvas.height/2,size=54;
+    c.save();c.translate(cx,cy);
+    c.fillStyle=box.color;c.shadowBlur=18;c.shadowColor=box.color;c.fillRect(-size/2,-size/2,size,size);c.shadowBlur=0;
+    c.fillStyle='#0f172a';c.fillRect(size/4,-size/4,6,6);c.fillRect(size/4,size/4-6,6,6);
+    c.beginPath();c.arc(size/4+2,0,12,Math.PI/4,-Math.PI/4,true);c.strokeStyle='#0f172a';c.lineWidth=3;c.stroke();
+    const gl=gun.length*1.5,gw=gun.width*1.5;c.fillStyle=gun.color;
+    if(gun.barrels>1){c.fillRect(size/2,-gw-3,gl,gw);c.fillRect(size/2,3,gl,gw);}
+    else c.fillRect(size/2,-gw/2,gl,gw);
+    c.restore();
+    c.save();c.fillStyle=bullet.color;c.shadowBlur=12;c.shadowColor=bullet.color;
+    for(let i=0;i<3;i++){
+        const bx=cx+size/2+gun.length*1.5+22+i*30,by=cy,r=8;
+        c.beginPath();
+        if(bullet.shape==='square')c.rect(bx-r,by-r,r*2,r*2);
+        else if(bullet.shape==='diamond'){c.moveTo(bx,by-r*1.3);c.lineTo(bx+r,by);c.lineTo(bx,by+r*1.3);c.lineTo(bx-r,by);c.closePath();}
+        else c.arc(bx,by,r,0,Math.PI*2);
+        c.fill();
+    }
+    c.restore();
+}
 function syncOptionsUI(){document.getElementById('opt-master').value=options.master;document.getElementById('opt-music').value=options.music;document.getElementById('opt-effects').value=options.effects;document.getElementById('opt-shake').checked=options.screenShake;document.getElementById('opt-damage-numbers').checked=options.damageNumbers;document.getElementById('opt-reduced-effects').checked=options.reducedEffects;}
 function openOptions(from='menu'){optionsReturn=from;if(from==='pause')uiPauseScreen.classList.add('hidden');else uiStartScreen.classList.add('hidden');uiOptionsScreen.classList.remove('hidden');syncOptionsUI();}
 function closeOptions(){uiOptionsScreen.classList.add('hidden');if(optionsReturn==='pause')uiPauseScreen.classList.remove('hidden');else uiStartScreen.classList.remove('hidden');}
@@ -746,6 +804,8 @@ soundEnabled=records.soundEnabled;document.getElementById('high-score-display').
 document.getElementById('btn-start').addEventListener('click',initGame);document.getElementById('btn-continue').addEventListener('click',recoverGame);document.getElementById('btn-restart').addEventListener('click',initGame);document.getElementById('btn-recover').addEventListener('click',recoverGame);document.getElementById('btn-newgame').addEventListener('click',initGame);
 document.getElementById('difficulty-select').addEventListener('change',e=>{setSelectedDifficulty(Number(e.target.value));renderRunSetup();});document.getElementById('starting-round').addEventListener('change',e=>{setSelectedStartRound(Number(e.target.value));renderRunSetup();});
 document.getElementById('btn-loadout-start').addEventListener('click',startPreparedLoadout);document.getElementById('btn-loadout-reroll').addEventListener('click',rerollAdvancedLoadout);document.getElementById('btn-loadout-back').addEventListener('click',()=>{gameState='START';document.getElementById('loadout-screen').classList.add('hidden');uiStartScreen.classList.remove('hidden');preparedLoadout=null;});
+document.getElementById('btn-workshop').addEventListener('click',openWorkshop);document.getElementById('btn-workshop-back').addEventListener('click',closeWorkshop);
+for(const tab of document.querySelectorAll('.workshop-tab'))tab.addEventListener('click',()=>{workshopSlot=tab.dataset.slot;renderWorkshop();});
 document.getElementById('btn-bestiary').addEventListener('click',openBestiary);document.getElementById('btn-bestiary-back').addEventListener('click',closeBestiary);document.getElementById('bestiary-status').addEventListener('change',renderBestiary);document.getElementById('bestiary-category').addEventListener('change',renderBestiary);
 document.getElementById('btn-options').addEventListener('click',()=>openOptions('menu'));document.getElementById('btn-pause-options').addEventListener('click',()=>openOptions('pause'));document.getElementById('btn-options-back').addEventListener('click',closeOptions);
 bindOption('opt-master','master','input','effects');bindOption('opt-music','music','input','music');bindOption('opt-effects','effects','input','effects');bindOption('opt-shake','screenShake','change');bindOption('opt-damage-numbers','damageNumbers','change');bindOption('opt-reduced-effects','reducedEffects','change');

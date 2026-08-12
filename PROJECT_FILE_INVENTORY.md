@@ -18,6 +18,7 @@ DEADBOX/
 │       ├── Outfit-VariableFont_wght.ttf
 │       └── OFL-Outfit.txt
 ├── js/
+│   ├── cosmetics.js
 │   ├── pool.js
 │   ├── particle.js
 │   ├── projectile.js
@@ -69,6 +70,7 @@ DEADBOX/
 | Proyectiles | `js/projectile.js` y `js/main.js` | Entidad reutilizable y resolución de disparos/impactos. |
 | Partículas | `js/particle.js` y `js/main.js` | Entidad visual reutilizable y límites. |
 | Object pooling | `js/pool.js` | Pool genérico usado por entidades frecuentes. |
+| Aspectos y chatarra | `js/cosmetics.js`, `js/main.js` | Catálogo de aspectos, compra/equipamiento y pantalla del Taller. Solo cambian el dibujo. |
 | Traducciones | `js/i18n.js` | Diccionario central English/Español y funciones de traducción. |
 | Menús e interfaz | `index.html`, `style.css`, `js/main.js` | Marcado, estilos y conexiones de eventos/estado. |
 | Guardado y recuperación | `js/main.js`, `js/difficulty.js` | `localStorage`, respaldo válido, récords, opciones, partida y metadatos. |
@@ -96,16 +98,17 @@ DEADBOX/
 
 `index.html` carga scripts clásicos en este orden:
 
-1. `pool.js`
-2. `particle.js`
-3. `projectile.js`
-4. `input.js`
-5. `i18n.js`
-6. `content.js`
-7. `difficulty.js`
-8. `zombie.js`
-9. `player.js`
-10. `spawner.js`
-11. `main.js`
+1. `cosmetics.js`
+2. `pool.js`
+3. `particle.js`
+4. `projectile.js`
+5. `input.js`
+6. `i18n.js`
+7. `content.js`
+8. `difficulty.js`
+9. `zombie.js`
+10. `player.js`
+11. `spawner.js`
+12. `main.js`
 
 Debe mantenerse porque los archivos comparten símbolos globales y no usan módulos ES.

@@ -11,7 +11,7 @@ const required = [
   'assets/fonts/Outfit-VariableFont_wght.ttf', 'assets/fonts/OFL-Outfit.txt'
 ];
 const scripts = [
-  'js/pool.js', 'js/particle.js', 'js/projectile.js', 'js/input.js',
+  'js/cosmetics.js', 'js/pool.js', 'js/particle.js', 'js/projectile.js', 'js/input.js',
   'js/i18n.js', 'js/content.js', 'js/difficulty.js', 'js/zombie.js',
   'js/player.js', 'js/spawner.js', 'js/main.js'
 ];

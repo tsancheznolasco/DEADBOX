@@ -257,7 +257,7 @@ class Player {
         const pSpeed = this.projectileSpeed * (this.buffs.projectileSpeed?.value || 1);
         const pDamage = (this.baseDamage + this.bonusDamage) * (this.buffs.damage?.value || 1) * (this.buffs.chili?.value || 1) * (this.hasPower('bulletStorm')?1.22:1) * (this.hasPower('giant')?1.4:1) * (this.hasPower('miniMode') ? .86 : 1);
         const pSize = this.projectileSize * (this.buffs.projectileSize?.value || 1);
-        const color = '#fbbf24';
+        const color = (typeof equippedCosmetic === 'function' ? equippedCosmetic('bullet')?.color : null) || '#fbbf24';
         
         // Determinar patrón de disparo según nivel
         const barrelOffsetX = Math.cos(angle) * (this.size/2 + 10);
@@ -346,10 +346,12 @@ class Player {
         ctx.translate(this.x, this.y - this.z);
         ctx.scale(powerScale,powerScale);
 
-        // Dibujar cuerpo (Caja)
-        ctx.fillStyle = '#60a5fa'; // Azul claro
+        // Dibujar cuerpo (Caja) con el aspecto equipado
+        const boxSkin = typeof equippedCosmetic === 'function' ? equippedCosmetic('box') : null;
+        const bodyColor = boxSkin?.color || '#60a5fa';
+        ctx.fillStyle = bodyColor;
         ctx.shadowBlur = 10;
-        ctx.shadowColor = '#60a5fa';
+        ctx.shadowColor = bodyColor;
         ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
         ctx.shadowBlur = 0;
         
@@ -371,8 +373,15 @@ class Player {
 
         // Pistola giratoria
         // La dibujamos teniendo en cuenta el retroceso
-        ctx.fillStyle = '#94a3b8'; // Gris arma
-        ctx.fillRect(this.size/2 - this.recoil, -4, 20, 8); // Cañón
+        const gunSkin = typeof equippedCosmetic === 'function' ? equippedCosmetic('gun') : null;
+        ctx.fillStyle = gunSkin?.color || '#94a3b8'; // Gris arma
+        const barrelLength = gunSkin?.length || 20, barrelWidth = gunSkin?.width || 8;
+        if ((gunSkin?.barrels || 1) > 1) {
+            ctx.fillRect(this.size/2 - this.recoil, -barrelWidth - 2, barrelLength, barrelWidth);
+            ctx.fillRect(this.size/2 - this.recoil, 2, barrelLength, barrelWidth);
+        } else {
+            ctx.fillRect(this.size/2 - this.recoil, -barrelWidth/2, barrelLength, barrelWidth); // Cañón
+        }
 
         ctx.restore();
         if(this.hasPower('ghost')){ctx.save();ctx.globalAlpha=.22+.12*Math.sin(Date.now()/90);ctx.strokeStyle='#c4b5fd';ctx.lineWidth=3;ctx.strokeRect(this.x-this.size*.65,this.y-this.z-this.size*.65,this.size*1.3,this.size*1.3);ctx.restore();}

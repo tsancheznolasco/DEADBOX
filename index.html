@@ -62,6 +62,7 @@
                 <div class="menu-stack">
                     <button id="btn-start" data-i18n="menu.play">Play</button>
                     <button id="btn-continue" class="hidden" data-i18n="menu.continue">Continue</button>
+                    <button id="btn-workshop" data-i18n="menu.workshop">Workshop</button>
                     <button id="btn-bestiary" data-i18n="menu.bestiary">Bestiary</button>
                     <button id="btn-options" data-i18n="menu.options">Options</button>
                 </div>
@@ -113,6 +114,30 @@
                 <div id="bestiary-grid" class="bestiary-grid"></div>
             </div>
 
+            <div id="workshop-screen" class="screen hidden panel-screen">
+                <div class="panel-header">
+                    <h2 data-i18n="workshop.title">Workshop</h2>
+                    <div class="panel-header-actions">
+                        <span id="workshop-scrap" class="scrap-badge">0</span>
+                        <button id="btn-workshop-back" class="small-button" data-i18n="common.back">Back</button>
+                    </div>
+                </div>
+                <div class="workshop-body">
+                    <div class="workshop-preview">
+                        <canvas id="workshop-canvas" width="240" height="200"></canvas>
+                        <p id="workshop-hint" class="workshop-hint" data-i18n="workshop.hint">Looks only — nothing here changes how the game plays.</p>
+                    </div>
+                    <div class="workshop-main">
+                        <div class="workshop-tabs">
+                            <button class="workshop-tab" data-slot="box" data-i18n="workshop.box">Box</button>
+                            <button class="workshop-tab" data-slot="gun" data-i18n="workshop.gun">Gun</button>
+                            <button class="workshop-tab" data-slot="bullet" data-i18n="workshop.bullet">Bullet</button>
+                        </div>
+                        <div id="workshop-grid" class="workshop-grid"></div>
+                    </div>
+                </div>
+            </div>
+
             <div id="options-screen" class="screen hidden panel-screen">
                 <div class="panel-header"><h2 data-i18n="options.title">Options</h2><button id="btn-options-back" class="small-button" data-i18n="common.back">Back</button></div>
                 <div class="options-grid">
@@ -141,6 +166,7 @@
     <div id="countdown" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 8rem; font-weight: bold; color: white; text-shadow: 0 0 20px rgba(0,0,0,0.8); z-index: 1000; text-align: center;"></div>
 
     <!-- Scripts secuenciales (sin type="module" para evitar problemas de CORS localmente) -->
+    <script src="js/cosmetics.js"></script>
     <script src="js/pool.js"></script>
     <script src="js/particle.js"></script>
     <script src="js/projectile.js"></script>
