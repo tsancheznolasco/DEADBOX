@@ -173,7 +173,19 @@ vm.runInThisContext(`
   // Los deslizadores deben silenciar del todo en 0, llegar a full en 1 y bajar de forma perceptible.
   if(volumeCurve(0)!==0||volumeCurve(1)!==1)throw new Error('La curva de volumen no cubre el recorrido completo');
   for(let i=1;i<=20;i++)if(volumeCurve(i/20)<=volumeCurve((i-1)/20))throw new Error('La curva de volumen no es monótona');
-  if(volumeCurve(.5)>=.3)throw new Error('La mitad del deslizador debería sonar claramente más bajo');
+  const halfDb=20*Math.log10(volumeCurve(.5));
+  if(halfDb>-8)throw new Error('La mitad del deslizador apenas baja el volumen');
+  if(halfDb<-16)throw new Error('La mitad del deslizador deja el volumen casi inaudible');
+  // Cambiar la curva no debe bajarle el volumen a quien ya tenía ajustes guardados en lineal.
+  const previousOptions=localStorage.getItem(OPTIONS_KEY);
+  localStorage.setItem(OPTIONS_KEY,JSON.stringify({master:.3,music:.3,effects:.3}));
+  const migrated=loadOptions();
+  if(migrated.version!==OPTIONS_VERSION)throw new Error('Las opciones no se marcaron como migradas');
+  for(const key of['master','music','effects'])if(Math.abs(volumeCurve(migrated[key])-.3)>.02)throw new Error('La migración no conserva el volumen anterior: '+key);
+  localStorage.setItem(OPTIONS_KEY,JSON.stringify({master:.3,version:OPTIONS_VERSION}));
+  if(Math.abs(loadOptions().master-.3)>1e-9)throw new Error('Una opción ya migrada se volvió a convertir');
+  if(previousOptions===null)localStorage.removeItem(OPTIONS_KEY);else localStorage.setItem(OPTIONS_KEY,previousOptions);
+
   const savedMaster=options.master,savedMusic=options.music,savedEffects=options.effects;
   options.master=0;options.music=1;options.effects=1;
   if(musicVolume()!==0||effectsVolume()!==0)throw new Error('El volumen general no silencia');

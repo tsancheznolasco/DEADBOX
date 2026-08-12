@@ -613,7 +613,9 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
 }
 
 .options-grid { width: min(620px,92vw); display: grid; gap: 13px; }
-.options-grid label { display: grid; grid-template-columns: 1fr minmax(160px,45%); align-items: center; gap: 20px; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--text-muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .16em; }
+.options-grid label { display: grid; grid-template-columns: 1fr minmax(160px,45%) 52px; align-items: center; gap: 18px; padding: 10px 0; border-bottom: 1px solid var(--line); color: var(--text-muted); font-size: .74rem; text-transform: uppercase; letter-spacing: .16em; }
+/* Ver el valor evita la duda de "el deslizador no hace nada" cuando quedó bajo. */
+.opt-value { text-align: right; color: var(--text-color); font-size: .8rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
 
 /* Casillas propias: la marca azul del navegador rompía la paleta ámbar. */
 .options-grid input[type="checkbox"] {

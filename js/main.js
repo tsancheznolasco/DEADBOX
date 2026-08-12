@@ -9,6 +9,9 @@ const OPTIONS_KEY = 'deadboxOptionsV1';
 const BESTIARY_KEY = 'deadboxBestiaryV1';
 for(const[next,legacy]of[[SAVE_KEY,'arenaSaveDataV2'],[BACKUP_KEY,'arenaSaveDataV2Backup'],[RECORD_KEY,'arenaRecordsV2'],[OPTIONS_KEY,'arenaOptionsV1'],[BESTIARY_KEY,'arenaBestiaryV1']])if(!localStorage.getItem(next)&&localStorage.getItem(legacy))localStorage.setItem(next,localStorage.getItem(legacy));
 const ROUND_DURATIONS = [22, 27, 32, 37, 42];
+// Se declaran antes que loadOptions() porque se usan durante su primera llamada.
+const OPTIONS_VERSION = 2;
+const VOLUME_EXPONENT = 1.7;
 
 let gameState = 'START';
 let lastTime = performance.now();
@@ -89,7 +92,17 @@ class SuperPickup{
     draw(c){const d=POWER_DEFS[this.type];c.save();c.translate(this.x,this.y);c.rotate(this.phase*.25);c.fillStyle=d.color;c.strokeStyle='#f8fafc';c.lineWidth=2;c.shadowBlur=18;c.shadowColor=d.color;c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4,r=i%2?13:21;c.lineTo(Math.cos(a)*r,Math.sin(a)*r);}c.closePath();c.fill();c.stroke();c.rotate(-this.phase*.25);c.shadowBlur=0;c.fillStyle='#07111f';c.font='800 9px system-ui';c.textAlign='center';c.textBaseline='middle';c.fillText(d.glyph,0,1);c.restore();}
 }
 
-function loadOptions(){const saved=loadJSON(OPTIONS_KEY)||{};return{master:finite(saved.master,1,0,1),music:finite(saved.music,.55,0,1),effects:finite(saved.effects,.8,0,1),screenShake:saved.screenShake!==false,damageNumbers:saved.damageNumbers!==false,reducedEffects:!!saved.reducedEffects};}
+function loadOptions(){
+    const saved=loadJSON(OPTIONS_KEY)||{};
+    const loaded={master:finite(saved.master,1,0,1),music:finite(saved.music,.55,0,1),effects:finite(saved.effects,.8,0,1),screenShake:saved.screenShake!==false,damageNumbers:saved.damageNumbers!==false,reducedEffects:!!saved.reducedEffects,version:OPTIONS_VERSION};
+    // Los deslizadores se aplicaban en lineal y ahora pasan por una curva perceptual: la misma
+    // posición sonaría mucho más baja. Se convierte la posición guardada para conservar el volumen
+    // que el jugador ya había elegido, en vez de bajárselo en silencio.
+    if(finite(saved.version,1,1,99)<2){
+        for(const key of['master','music','effects'])if(loaded[key]>0)loaded[key]=Math.min(1,Math.pow(loaded[key],1/VOLUME_EXPONENT));
+    }
+    return loaded;
+}
 function saveOptions(){localStorage.setItem(OPTIONS_KEY,JSON.stringify(options));}
 function loadBestiary(){const saved=loadJSON(BESTIARY_KEY);return saved&&saved.entries? saved : {version:1,entries:{}};}
 function saveBestiary(){try{localStorage.setItem(BESTIARY_KEY,JSON.stringify(bestiaryState));}catch(e){console.warn('Bestiary save skipped',e);}}
@@ -243,7 +256,7 @@ const MUSIC_ZONES={
 let musicTimer=null,musicNextTime=0,musicStep=0,musicGain=null,musicDelay=null,musicNoise=null,musicDuck=1;
 // El oído percibe el volumen de forma logarítmica: con una curva lineal el control no hace casi nada
 // hasta el último tramo. Elevar el valor hace que el recorrido del deslizador se sienta parejo.
-function volumeCurve(v){const value=clamp(Number(v)||0,0,1);return value<=0?0:Math.pow(value,2.2);}
+function volumeCurve(v){const value=clamp(Number(v)||0,0,1);return value<=0?0:Math.pow(value,VOLUME_EXPONENT);}
 function musicVolume(){return soundEnabled?volumeCurve(options.master)*volumeCurve(options.music)*musicDuck:0;}
 function effectsVolume(){return volumeCurve(options.master)*volumeCurve(options.effects);}
 function musicStepSeconds(zone){return 60/MUSIC_BPM/2/zone.tempo;}
@@ -843,7 +856,8 @@ function enhanceSelect(select){
 document.addEventListener('click',()=>closeAllSelects());
 window.addEventListener('keydown',event=>{if(event.key==='Escape')closeAllSelects();});
 
-function syncOptionsUI(){document.getElementById('opt-master').value=options.master;document.getElementById('opt-music').value=options.music;document.getElementById('opt-effects').value=options.effects;document.getElementById('opt-shake').checked=options.screenShake;document.getElementById('opt-damage-numbers').checked=options.damageNumbers;document.getElementById('opt-reduced-effects').checked=options.reducedEffects;}
+function renderVolumeReadouts(){for(const key of['master','music','effects']){const el=document.getElementById(`opt-${key}-value`);if(el)el.textContent=`${Math.round(options[key]*100)}%`;}}
+function syncOptionsUI(){document.getElementById('opt-master').value=options.master;document.getElementById('opt-music').value=options.music;document.getElementById('opt-effects').value=options.effects;renderVolumeReadouts();document.getElementById('opt-shake').checked=options.screenShake;document.getElementById('opt-damage-numbers').checked=options.damageNumbers;document.getElementById('opt-reduced-effects').checked=options.reducedEffects;}
 function openOptions(from='menu'){optionsReturn=from;if(from==='pause')uiPauseScreen.classList.add('hidden');else uiStartScreen.classList.add('hidden');uiOptionsScreen.classList.remove('hidden');syncOptionsUI();}
 function closeOptions(){uiOptionsScreen.classList.add('hidden');if(optionsReturn==='pause')uiPauseScreen.classList.remove('hidden');else uiStartScreen.classList.remove('hidden');}
 // Los deslizadores se ajustan en menús donde puede no sonar nada; sin una muestra audible es
@@ -865,7 +879,7 @@ function previewVolume(kind){
     }
     playSound('hit');
 }
-function bindOption(id,key,event='input',preview=null){document.getElementById(id).addEventListener(event,e=>{options[key]=e.target.type==='checkbox'?e.target.checked:Number(e.target.value);saveOptions();if(preview)previewVolume(preview);});}
+function bindOption(id,key,event='input',preview=null){document.getElementById(id).addEventListener(event,e=>{options[key]=e.target.type==='checkbox'?e.target.checked:Number(e.target.value);saveOptions();renderVolumeReadouts();if(preview)previewVolume(preview);});}
 function setupRunSelectors(){
     unlockStartingRounds(records.highRound);const difficulty=document.getElementById('difficulty-select'),starting=document.getElementById('starting-round');difficulty.innerHTML=DIFFICULTY_VALUES.map(value=>`<option value="${value}">${value}% · ${t(value<100?'setup.easier':value===100?'setup.normal':'setup.harder')}</option>`).join('');difficulty.value=String(selectedDifficulty);starting.innerHTML=START_ROUNDS.map(round=>`<option value="${round}" ${round>gameMeta.unlockedStartRound?'disabled':''}>${t('setup.round',{round})}</option>`).join('');if(selectedStartRound>gameMeta.unlockedStartRound)setSelectedStartRound(1);starting.value=String(selectedStartRound);renderRunSetup();
 }
