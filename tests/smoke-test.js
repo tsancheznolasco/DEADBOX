@@ -133,6 +133,16 @@ vm.runInThisContext(`
   resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
   update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
 
+  // El botón principal del menú descarta la partida a medias, así que sólo puede decir "Jugar"
+  // cuando no hay ninguna en curso.
+  const startButton=document.getElementById('btn-start');
+  initGame(); saveProgress('label-test'); markSessionActive();
+  if(!checkRecovery())throw new Error('No se detectó la partida en curso');
+  if(startButton.textContent!==t('menu.retry'))throw new Error('Con partida en curso el botón debe decir Reintentar');
+  gameOver();
+  if(checkRecovery())throw new Error('Tras morir no debería quedar partida en curso');
+  if(startButton.textContent!==t('menu.play'))throw new Error('Sin partida en curso el botón debe decir Jugar');
+
   // Pantalla de muerte: la causa debe salir de lo que realmente hizo el daño.
   lastDamageSource=null;
   if(deathCauseText()!==t('gameOver.killedByUnknown'))throw new Error('Sin fuente conocida no debe inventarse una causa');

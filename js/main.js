@@ -541,7 +541,7 @@ function initGame(){if(selectedStartRound>1)prepareAdvancedStart();else beginRun
 window.addEventListener('pause_toggle',()=>{if(gameState==='PLAYING'){Input.pressed.clear();gameState='PAUSED';musicDuck=.35;uiPauseScreen.classList.remove('hidden');}else if(gameState==='PAUSED')resumeFromPause();});
 function resumeFromPause(){Input.pressed.clear();gameState='PLAYING';uiPauseScreen.classList.add('hidden');lastTime=performance.now();musicDuck=1;startMusic();}
 document.getElementById('btn-resume').addEventListener('click',resumeFromPause);
-document.getElementById('btn-quit').addEventListener('click',()=>{saveProgress('quit');stopMusic();musicDuck=1;gameState='START';uiPauseScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();});
+document.getElementById('btn-quit').addEventListener('click',()=>{saveProgress('quit');stopMusic();musicDuck=1;gameState='START';uiPauseScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();refreshMenuStats();checkRecovery();});
 
 window.addEventListener('earthquake',e=>{
     if(gameState!=='PLAYING')return;const d=e.detail;playSound('earthquake');shakeTime=300;shakeMagnitude=10;
@@ -744,7 +744,14 @@ function saveProgress(reason='auto'){
 function validSave(d){return d&&[2,3].includes(d.version)&&Number.isFinite(Number(d.savedAt))&&Number.isFinite(Number(d.round))&&Number(d.round)>=1;}
 function getSafeSave(){const primary=loadJSON(SAVE_KEY);if(validSave(primary))return primary;const backup=loadJSON(BACKUP_KEY);return validSave(backup)?backup:null;}
 function markSessionActive(){try{const d=getSafeSave();if(d){d.sessionActive=true;localStorage.setItem(SAVE_KEY,JSON.stringify(d));}}catch{}}
-function checkRecovery(){const d=getSafeSave(),button=document.getElementById('btn-continue');button.classList.toggle('hidden',!(d&&d.sessionActive));return d&&d.sessionActive;}
+function checkRecovery(){
+    const d=getSafeSave(),active=!!(d&&d.sessionActive);
+    document.getElementById('btn-continue').classList.toggle('hidden',!active);
+    // Con una partida a medias el botón principal la descarta y empieza de cero, así que
+    // llamarlo "Jugar" engaña: sólo es "Jugar" cuando no hay nada que perder.
+    document.getElementById('btn-start').textContent=t(active?'menu.retry':'menu.play');
+    return active;
+}
 function recoverGame(){
     const d=getSafeSave();if(!d){uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');return;}ensureAudio();
     const recoverRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1),recoverSize=arenaSizeForRound(recoverRound);arena.width=recoverSize.width;arena.height=recoverSize.height;applyArenaTheme(recoverRound);lastAnnouncedZone=null;
@@ -951,7 +958,7 @@ document.getElementById('start-summary').innerHTML=`<span>${t('setup.loadout')}<
 
 soundEnabled=records.soundEnabled;refreshMenuStats();
 document.getElementById('btn-start').addEventListener('click',initGame);document.getElementById('btn-continue').addEventListener('click',recoverGame);document.getElementById('btn-restart').addEventListener('click',initGame);
-document.getElementById('btn-gameover-menu').addEventListener('click',()=>{gameState='START';uiGameOverScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();refreshMenuStats();});document.getElementById('btn-recover').addEventListener('click',recoverGame);document.getElementById('btn-newgame').addEventListener('click',initGame);
+document.getElementById('btn-gameover-menu').addEventListener('click',()=>{gameState='START';uiGameOverScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();refreshMenuStats();checkRecovery();});document.getElementById('btn-recover').addEventListener('click',recoverGame);document.getElementById('btn-newgame').addEventListener('click',initGame);
 document.getElementById('difficulty-select').addEventListener('change',e=>{setSelectedDifficulty(Number(e.target.value));renderRunSetup();});document.getElementById('starting-round').addEventListener('change',e=>{setSelectedStartRound(Number(e.target.value));renderRunSetup();});
 document.getElementById('btn-loadout-start').addEventListener('click',startPreparedLoadout);document.getElementById('btn-loadout-reroll').addEventListener('click',rerollAdvancedLoadout);document.getElementById('btn-loadout-back').addEventListener('click',()=>{gameState='START';document.getElementById('loadout-screen').classList.add('hidden');uiStartScreen.classList.remove('hidden');preparedLoadout=null;});
 document.getElementById('btn-workshop').addEventListener('click',openWorkshop);document.getElementById('btn-workshop-back').addEventListener('click',closeWorkshop);
@@ -961,7 +968,7 @@ document.getElementById('btn-options').addEventListener('click',()=>openOptions(
 bindOption('opt-master','master','input','effects');bindOption('opt-music','music','input','music');bindOption('opt-effects','effects','input','effects');bindOption('opt-shake','screenShake','change');bindOption('opt-damage-numbers','damageNumbers','change');bindOption('opt-reduced-effects','reducedEffects','change');
 document.getElementById('btn-fullscreen').addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.();});
 for(const id of['language-main','language-pause','language-options'])document.getElementById(id).addEventListener('change',e=>setLanguage(e.target.value));
-window.addEventListener('language_changed',()=>{refreshMenuStats();setupRunSelectors();if(preparedLoadout)renderLoadoutSummary();if(!uiBestiaryScreen.classList.contains('hidden')){setupBestiaryFilters();renderBestiary();}});
+window.addEventListener('language_changed',()=>{refreshMenuStats();setupRunSelectors();checkRecovery();if(preparedLoadout)renderLoadoutSummary();if(!uiBestiaryScreen.classList.contains('hidden')){setupBestiaryFilters();renderBestiary();}});
 setLanguage(currentLanguage);setupRunSelectors();checkRecovery();
 for(const id of['starting-round','difficulty-select','language-main','language-pause','language-options','bestiary-status','bestiary-category'])enhanceSelect(document.getElementById(id));
 requestAnimationFrame(gameLoop);
