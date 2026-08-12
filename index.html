@@ -11,23 +11,32 @@
         <canvas id="gameCanvas"></canvas>
         <div id="ui-layer">
             <div id="hud" class="hidden">
-                <div class="hud-top-left">
-                    <div id="health-bar-container">
-                        <div id="health-bar"></div>
-                    </div>
-                    <div id="health-text">100 / 100</div>
-                </div>
                 <div class="hud-top-right">
                     <div id="score">Puntuación: 0</div>
                     <div id="combo">Combo: 0</div>
                 </div>
+                <div class="hud-top-center">
+                    <div id="round-info">Ronda 1 - 22s</div>
+                    <div class="round-timer-track"><div id="round-timer-bar"></div></div>
+                </div>
                 <div class="hud-bottom-left">
                     <div id="weapon-level">Arma Lvl 1</div>
-                    <div id="jump-cooldown">Salto Listo</div>
-                    <div id="dash-cooldown">» Shift · Ready</div>
+                    <div class="cooldown-row">
+                        <span class="cooldown-icon">⤒</span>
+                        <div class="cooldown-track"><div id="jump-cooldown-bar" class="cooldown-fill"></div></div>
+                        <span id="jump-cooldown" class="cooldown-label">Salto Listo</span>
+                    </div>
+                    <div class="cooldown-row">
+                        <span class="cooldown-icon">»</span>
+                        <div class="cooldown-track"><div id="dash-cooldown-bar" class="cooldown-fill"></div></div>
+                        <span id="dash-cooldown" class="cooldown-label">Shift · Ready</span>
+                    </div>
                 </div>
-                <div class="hud-bottom-right">
-                <div id="round-info">Ronda 1 - 22s</div>
+                <div id="health-hud">
+                    <div id="health-bar-container">
+                        <div id="health-bar"></div>
+                        <div id="health-text">100 / 100</div>
+                    </div>
                 </div>
                 <div id="notifications" style="opacity: 0;"></div>
                 <div id="round-modifier" class="round-banner hidden"></div>

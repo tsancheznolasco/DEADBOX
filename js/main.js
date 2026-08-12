@@ -28,6 +28,10 @@ const uiPauseScreen = document.getElementById('pause-screen');
 const uiRecoveryScreen = document.getElementById('recovery-screen');
 const healthBar = document.getElementById('health-bar');
 const healthText = document.getElementById('health-text');
+const healthBarContainer = document.getElementById('health-bar-container');
+const roundTimerBar = document.getElementById('round-timer-bar');
+const jumpCooldownBar = document.getElementById('jump-cooldown-bar');
+const dashCooldownBar = document.getElementById('dash-cooldown-bar');
 const scoreText = document.getElementById('score');
 const bossHUD = document.getElementById('boss-hud');
 const bossBar = document.getElementById('boss-bar');
@@ -439,11 +443,13 @@ function handleEnemyDeath(z){
 
 function updateHUD(time){
     const hp=clamp(player.health/player.maxHealth*100,0,100);healthBar.style.width=`${hp}%`;healthText.textContent=`${Math.ceil(player.health)} / ${player.maxHealth}`;scoreText.textContent=t('hud.score',{score:Math.floor(score)});
+    healthBarContainer.classList.toggle('low-health',hp<=30);
     const comboEl=document.getElementById('combo');comboEl.style.opacity=combo>1?1:0;comboEl.textContent=t('hud.combo',{combo});
     document.getElementById('round-info').textContent=gameState==='UPGRADING'?t('hud.safePause'):gameState==='COUNTDOWN'?t('hud.preparing'):t('hud.round',{round:currentRound,time:Math.max(0,Math.ceil(roundTimeLeft)),name:roundModifier});
+    if(roundTimerBar){const timerPct=gameState==='PLAYING'&&roundDuration>0?clamp(roundTimeLeft/roundDuration*100,0,100):100;roundTimerBar.style.width=`${timerPct}%`;roundTimerBar.classList.toggle('low',timerPct<=25);}
     document.getElementById('weapon-level').textContent=t('hud.weapon',{level:player.weaponLevel});
-    const elapsed=time-player.lastJumpTime,effectiveJump=player.jumpCooldown/(player.buffs.jumpRate?.value||1),jump=document.getElementById('jump-cooldown');if(player.noJump){jump.textContent=t('hud.jumpBlocked');jump.style.color='#f87171';}else if(elapsed>=effectiveJump){jump.textContent=t('hud.jumpReady');jump.style.color='#34d399';}else{jump.textContent=t('hud.jumpTime',{time:((effectiveJump-elapsed)/1000).toFixed(1)});jump.style.color='#94a3b8';}
-    const dash=document.getElementById('dash-cooldown');if(player.isDashing){dash.textContent=t('hud.dashActive');dash.style.color='#7dd3fc';}else if(player.dashAvailable){dash.textContent=player.maxDashCharges>1?t('hud.dashCharges',{count:player.dashCharges}):t('hud.dashReady');dash.style.color='#38bdf8';}else{dash.textContent=t('hud.dashTime',{time:Math.max(0,player.dashRechargeTimer/1000).toFixed(1)});dash.style.color='#94a3b8';}
+    const elapsed=time-player.lastJumpTime,effectiveJump=player.jumpCooldown/(player.buffs.jumpRate?.value||1),jump=document.getElementById('jump-cooldown');if(player.noJump){jump.textContent=t('hud.jumpBlocked');jump.style.color='#f87171';if(jumpCooldownBar){jumpCooldownBar.style.width='100%';jumpCooldownBar.className='cooldown-fill blocked';}}else if(elapsed>=effectiveJump){jump.textContent=t('hud.jumpReady');jump.style.color='#34d399';if(jumpCooldownBar)jumpCooldownBar.className='cooldown-fill ready';}else{jump.textContent=t('hud.jumpTime',{time:((effectiveJump-elapsed)/1000).toFixed(1)});jump.style.color='#94a3b8';if(jumpCooldownBar){jumpCooldownBar.className='cooldown-fill';jumpCooldownBar.style.width=`${clamp(elapsed/effectiveJump*100,0,100)}%`;}}
+    const dash=document.getElementById('dash-cooldown');if(player.isDashing){dash.textContent=t('hud.dashActive');dash.style.color='#7dd3fc';if(dashCooldownBar)dashCooldownBar.className='cooldown-fill active';}else if(player.dashAvailable){dash.textContent=player.maxDashCharges>1?t('hud.dashCharges',{count:player.dashCharges}):t('hud.dashReady');dash.style.color='#38bdf8';if(dashCooldownBar)dashCooldownBar.className='cooldown-fill ready';}else{dash.textContent=t('hud.dashTime',{time:Math.max(0,player.dashRechargeTimer/1000).toFixed(1)});dash.style.color='#94a3b8';if(dashCooldownBar){dashCooldownBar.className='cooldown-fill';dashCooldownBar.style.width=`${clamp((1-player.dashRechargeTimer/player.getDashCooldown())*100,0,100)}%`;}}
     if(bossForRound&&bossForRound.active){bossHUD.classList.remove('hidden');bossName.textContent=t('boss.phase',{name:bossForRound.displayName||t('boss.miniboss'),phase:bossForRound.phase||1});bossBar.style.width=`${clamp(bossForRound.health/bossForRound.maxHealth*100,0,100)}%`;}else bossHUD.classList.add('hidden');
     if(time-hudEffectsTimer>100){hudEffectsTimer=time;renderActiveEffects();}
 }
