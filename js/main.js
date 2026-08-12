@@ -198,6 +198,7 @@ function spawnFood(x,y,type=null,source='normal'){
 function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
 window.addEventListener('resize',resize);resize();Input.init();
 
+function ensureAudio(){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();audioCtx.resume?.();}catch(e){console.warn('Audio skipped',e);}return audioCtx;}
 // Los efectos suenan por encima del bajo de la música: si comparten banda grave, quedan enmascarados.
 const SFX={shoot:{from:760,to:300,dur:.07,wave:'square',level:.13,gap:45},hit:{from:340,to:120,dur:.12,wave:'sawtooth',level:.19,gap:30},earthquake:{from:190,to:55,dur:.24,wave:'triangle',level:.24,gap:80}};
 const lastSoundByType={};
@@ -208,7 +209,7 @@ function playSound(type){
     try{
         const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),at=audioCtx.currentTime;
         osc.type=spec.wave;osc.frequency.setValueAtTime(spec.from,at);osc.frequency.exponentialRampToValueAtTime(spec.to,at+spec.dur);
-        gain.gain.setValueAtTime(spec.level*options.master*options.effects,at);gain.gain.exponentialRampToValueAtTime(.0005,at+spec.dur+.03);
+        gain.gain.setValueAtTime(spec.level*effectsVolume(),at);gain.gain.exponentialRampToValueAtTime(.0005,at+spec.dur+.03);
         osc.connect(gain);gain.connect(audioCtx.destination);osc.start(at);osc.stop(at+spec.dur+.05);
     }catch(e){console.warn('Audio skipped',e);}
 }
@@ -238,8 +239,12 @@ const MUSIC_ZONES={
     ember:{transpose:-5,wave:'sawtooth',tempo:1.12,cutoff:1250},
     null:{transpose:-7,wave:'triangle',tempo:1.15,cutoff:1100}
 };
-let musicTimer=null,musicNextTime=0,musicStep=0,musicGain=null,musicDelay=null,musicNoise=null;
-function musicVolume(){return soundEnabled?clamp(options.master*options.music,0,1):0;}
+let musicTimer=null,musicNextTime=0,musicStep=0,musicGain=null,musicDelay=null,musicNoise=null,musicDuck=1;
+// El oído percibe el volumen de forma logarítmica: con una curva lineal el control no hace casi nada
+// hasta el último tramo. Elevar el valor hace que el recorrido del deslizador se sienta parejo.
+function volumeCurve(v){const value=clamp(Number(v)||0,0,1);return value<=0?0:Math.pow(value,2.2);}
+function musicVolume(){return soundEnabled?volumeCurve(options.master)*volumeCurve(options.music)*musicDuck:0;}
+function effectsVolume(){return volumeCurve(options.master)*volumeCurve(options.effects);}
 function musicStepSeconds(zone){return 60/MUSIC_BPM/2/zone.tempo;}
 function musicNoiseBuffer(){
     if(musicNoise)return musicNoise;
@@ -251,7 +256,7 @@ function startMusic(){
     if(!audioCtx||musicTimer)return;
     try{
         audioCtx.resume?.();
-        musicGain=audioCtx.createGain();musicGain.gain.value=musicVolume()*.22;musicGain.connect(audioCtx.destination);
+        musicGain=audioCtx.createGain();musicGain.gain.value=musicVolume()*.42;musicGain.connect(audioCtx.destination);
         musicDelay=audioCtx.createDelay();musicDelay.delayTime.value=.28;
         const feedback=audioCtx.createGain();feedback.gain.value=.26;
         musicDelay.connect(feedback);feedback.connect(musicDelay);musicDelay.connect(musicGain);
@@ -267,7 +272,7 @@ function scheduleMusic(){
     if(!audioCtx||!musicGain)return;
     const zone=MUSIC_ZONES[arena.themeId]||MUSIC_ZONES.containment,stepSeconds=musicStepSeconds(zone);
     // El eco debe caer sobre la rejilla del tempo; si no, suena como notas sueltas fuera de ritmo.
-    try{musicGain.gain.value=musicVolume()*.22;if(musicDelay)musicDelay.delayTime.value=stepSeconds*2;}catch{return;}
+    try{musicGain.gain.value=musicVolume()*.42;if(musicDelay)musicDelay.delayTime.value=stepSeconds*2;}catch{return;}
     let guard=0;
     while(musicNextTime<audioCtx.currentTime+.35&&guard++<24){playMusicStep(zone,musicStep,musicNextTime,stepSeconds);musicNextTime+=stepSeconds;musicStep++;}
     if(musicNextTime<audioCtx.currentTime)musicNextTime=audioCtx.currentTime+.05;
@@ -496,19 +501,21 @@ function drawObstacles(){
 
 function beginRun(startRound=1,preparedPlayer=null){
     Input.reset();document.activeElement?.blur?.();
-    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    ensureAudio();
     const beginSize=arenaSizeForRound(startRound);arena.width=beginSize.width;arena.height=beginSize.height;applyArenaTheme(startRound);lastAnnouncedZone=null;
     player=preparedPlayer||new Player(arena.width/2,arena.height/2);player.x=arena.width/2;player.y=arena.height/2;player.health=player.maxHealth;player.buffs={};player.powers={};player.storedPower=null;player.regen=null;player.orbs=0;player.dashCharges=player.maxDashCharges;player.dashRechargeTimer=0;resetEntities();score=0;combo=0;comboTimer=0;kills=0;bestCombo=0;autosaveTimer=0;adaptivePressure=0;roundsWithoutDamage=0;modifierHistory=[];enemyIdentityHistory=[];synergyHistory=[];obstacleHistory=[];stolenPower=null;Spawner.resetSession();resetEncounterRotation();
     runInfo={startRound,difficulty:selectedDifficulty,advanced:startRound>1,startedAt:Date.now()};
     uiStartScreen.classList.add('hidden');document.getElementById('loadout-screen').classList.add('hidden');uiRecoveryScreen.classList.add('hidden');uiGameOverScreen.classList.add('hidden');uiPauseScreen.classList.add('hidden');uiHUD.classList.remove('hidden');
-    configureRound(startRound);gameState='PLAYING';markSessionActive();saveProgress(startRound>1?'advanced-start':'new-game');lastTime=performance.now();startMusic();
+    configureRound(startRound);gameState='PLAYING';markSessionActive();saveProgress(startRound>1?'advanced-start':'new-game');lastTime=performance.now();musicDuck=1;startMusic();
 }
 function initGame(){if(selectedStartRound>1)prepareAdvancedStart();else beginRun(1);}
 
-window.addEventListener('pause_toggle',()=>{if(gameState==='PLAYING'){Input.pressed.clear();gameState='PAUSED';stopMusic();uiPauseScreen.classList.remove('hidden');}else if(gameState==='PAUSED')resumeFromPause();});
-function resumeFromPause(){Input.pressed.clear();gameState='PLAYING';uiPauseScreen.classList.add('hidden');lastTime=performance.now();startMusic();}
+// En pausa la música se atenúa en vez de detenerse: Opciones se abre desde aquí y el deslizador
+// de música necesita algo que oír para poder ajustarse.
+window.addEventListener('pause_toggle',()=>{if(gameState==='PLAYING'){Input.pressed.clear();gameState='PAUSED';musicDuck=.35;uiPauseScreen.classList.remove('hidden');}else if(gameState==='PAUSED')resumeFromPause();});
+function resumeFromPause(){Input.pressed.clear();gameState='PLAYING';uiPauseScreen.classList.add('hidden');lastTime=performance.now();musicDuck=1;startMusic();}
 document.getElementById('btn-resume').addEventListener('click',resumeFromPause);
-document.getElementById('btn-quit').addEventListener('click',()=>{saveProgress('quit');stopMusic();gameState='START';uiPauseScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();});
+document.getElementById('btn-quit').addEventListener('click',()=>{saveProgress('quit');stopMusic();musicDuck=1;gameState='START';uiPauseScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();});
 
 window.addEventListener('earthquake',e=>{
     if(gameState!=='PLAYING')return;const d=e.detail;playSound('earthquake');shakeTime=300;shakeMagnitude=10;
@@ -684,7 +691,7 @@ function getSafeSave(){const primary=loadJSON(SAVE_KEY);if(validSave(primary))re
 function markSessionActive(){try{const d=getSafeSave();if(d){d.sessionActive=true;localStorage.setItem(SAVE_KEY,JSON.stringify(d));}}catch{}}
 function checkRecovery(){const d=getSafeSave(),button=document.getElementById('btn-continue');button.classList.toggle('hidden',!(d&&d.sessionActive));return d&&d.sessionActive;}
 function recoverGame(){
-    const d=getSafeSave();if(!d){uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');return;}if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const d=getSafeSave();if(!d){uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');return;}ensureAudio();
     const recoverRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1),recoverSize=arenaSizeForRound(recoverRound);arena.width=recoverSize.width;arena.height=recoverSize.height;applyArenaTheme(recoverRound);lastAnnouncedZone=null;
     player=new Player(arena.width/2,arena.height/2);player.maxHealth=finite(d.maxHealth,100,20,10000);player.health=finite(d.health,player.maxHealth,1,player.maxHealth);player.weaponLevel=finite(d.weaponLevel,1,1,100);player.bonusDamage=finite(d.bonusDamage,0,0,10000);player.fireRate=finite(d.fireRate,300,65,1000);player.speed=finite(d.speed,4,1,15);player.jumpCooldown=finite(d.jumpCooldown,5000,600,10000);player.projectileSize=finite(d.projectileSize,5,2,30);player.damageReduction=finite(d.damageReduction,0,0,.5);player.shieldHits=finite(d.shieldHits,0,0,10);player.dashDistance=finite(d.dashDistance,140,120,280);player.dashSpeed=finite(d.dashSpeed,1,.8,1.7);player.dashCooldown=finite(d.dashCooldown,4000,800,5000);player.dashInvulnerability=finite(d.dashInvulnerability,140,100,450);player.maxDashCharges=finite(d.maxDashCharges,1,1,2);player.dashCharges=player.maxDashCharges;player.dashAvailable=true;player.shockDash=!!d.shockDash;player.trailBurn=!!d.trailBurn;
     setSelectedDifficulty(finite(d.difficulty,d.runInfo?.difficulty||100,1,500));runInfo=d.runInfo&&typeof d.runInfo==='object'?d.runInfo:{startRound:finite(d.startRound,1,1),difficulty:selectedDifficulty,advanced:finite(d.startRound,1,1)>1,startedAt:Date.now()};score=finite(d.score,0,0);kills=finite(d.kills,0,0);bestCombo=finite(d.bestCombo,0,0);adaptivePressure=finite(d.adaptivePressure,0,0,1);roundsWithoutDamage=finite(d.roundsWithoutDamage,0,0,20);combo=0;resetEntities();currentRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1);
@@ -710,7 +717,26 @@ function closeBestiary(){uiBestiaryScreen.classList.add('hidden');uiStartScreen.
 function syncOptionsUI(){document.getElementById('opt-master').value=options.master;document.getElementById('opt-music').value=options.music;document.getElementById('opt-effects').value=options.effects;document.getElementById('opt-shake').checked=options.screenShake;document.getElementById('opt-damage-numbers').checked=options.damageNumbers;document.getElementById('opt-reduced-effects').checked=options.reducedEffects;}
 function openOptions(from='menu'){optionsReturn=from;if(from==='pause')uiPauseScreen.classList.add('hidden');else uiStartScreen.classList.add('hidden');uiOptionsScreen.classList.remove('hidden');syncOptionsUI();}
 function closeOptions(){uiOptionsScreen.classList.add('hidden');if(optionsReturn==='pause')uiPauseScreen.classList.remove('hidden');else uiStartScreen.classList.remove('hidden');}
-function bindOption(id,key,event='input'){document.getElementById(id).addEventListener(event,e=>{options[key]=e.target.type==='checkbox'?e.target.checked:Number(e.target.value);saveOptions();});}
+// Los deslizadores se ajustan en menús donde puede no sonar nada; sin una muestra audible es
+// imposible saber dónde queda el volumen.
+let lastPreviewAt=0;
+function previewVolume(kind){
+    if(!ensureAudio())return;
+    const now=performance.now();if(now-lastPreviewAt<170)return;lastPreviewAt=now;
+    if(kind==='music'){
+        if(musicTimer)return;                                   // la música ya se está oyendo
+        const level=musicVolume()*.42;if(level<=0)return;
+        try{
+            const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),at=audioCtx.currentTime;
+            osc.type='triangle';osc.frequency.setValueAtTime(MUSIC_ROOT*2,at);
+            gain.gain.setValueAtTime(.0001,at);gain.gain.exponentialRampToValueAtTime(level*1.8,at+.02);gain.gain.exponentialRampToValueAtTime(.0001,at+.36);
+            osc.connect(gain);gain.connect(audioCtx.destination);osc.start(at);osc.stop(at+.4);
+        }catch(e){console.warn('Audio skipped',e);}
+        return;
+    }
+    playSound('hit');
+}
+function bindOption(id,key,event='input',preview=null){document.getElementById(id).addEventListener(event,e=>{options[key]=e.target.type==='checkbox'?e.target.checked:Number(e.target.value);saveOptions();if(preview)previewVolume(preview);});}
 function setupRunSelectors(){
     unlockStartingRounds(records.highRound);const difficulty=document.getElementById('difficulty-select'),starting=document.getElementById('starting-round');difficulty.innerHTML=DIFFICULTY_VALUES.map(value=>`<option value="${value}">${value}%</option>`).join('');difficulty.value=String(selectedDifficulty);starting.innerHTML=START_ROUNDS.map(round=>`<option value="${round}" ${round>gameMeta.unlockedStartRound?'disabled':''}>${t('setup.round',{round})}</option>`).join('');if(selectedStartRound>gameMeta.unlockedStartRound)setSelectedStartRound(1);starting.value=String(selectedStartRound);renderRunSetup();
 }
@@ -722,7 +748,7 @@ document.getElementById('difficulty-select').addEventListener('change',e=>{setSe
 document.getElementById('btn-loadout-start').addEventListener('click',startPreparedLoadout);document.getElementById('btn-loadout-reroll').addEventListener('click',rerollAdvancedLoadout);document.getElementById('btn-loadout-back').addEventListener('click',()=>{gameState='START';document.getElementById('loadout-screen').classList.add('hidden');uiStartScreen.classList.remove('hidden');preparedLoadout=null;});
 document.getElementById('btn-bestiary').addEventListener('click',openBestiary);document.getElementById('btn-bestiary-back').addEventListener('click',closeBestiary);document.getElementById('bestiary-status').addEventListener('change',renderBestiary);document.getElementById('bestiary-category').addEventListener('change',renderBestiary);
 document.getElementById('btn-options').addEventListener('click',()=>openOptions('menu'));document.getElementById('btn-pause-options').addEventListener('click',()=>openOptions('pause'));document.getElementById('btn-options-back').addEventListener('click',closeOptions);
-bindOption('opt-master','master');bindOption('opt-music','music');bindOption('opt-effects','effects');bindOption('opt-shake','screenShake','change');bindOption('opt-damage-numbers','damageNumbers','change');bindOption('opt-reduced-effects','reducedEffects','change');
+bindOption('opt-master','master','input','effects');bindOption('opt-music','music','input','music');bindOption('opt-effects','effects','input','effects');bindOption('opt-shake','screenShake','change');bindOption('opt-damage-numbers','damageNumbers','change');bindOption('opt-reduced-effects','reducedEffects','change');
 document.getElementById('btn-fullscreen').addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.();});
 for(const id of['language-main','language-pause','language-options'])document.getElementById(id).addEventListener('change',e=>setLanguage(e.target.value));
 window.addEventListener('language_changed',()=>{document.getElementById('high-score-display').textContent=t('records.line',{score:records.highScore,round:records.highRound});setupRunSelectors();if(preparedLoadout)renderLoadoutSummary();if(!uiBestiaryScreen.classList.contains('hidden')){setupBestiaryFilters();renderBestiary();}});

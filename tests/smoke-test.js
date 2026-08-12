@@ -142,6 +142,21 @@ vm.runInThisContext(`
   if(Object.values(SFX).some(s=>s.from<=150))throw new Error('Un efecto arranca dentro de la banda del bajo');
   if(Object.values(SFX).some(s=>s.level<=.1))throw new Error('Un efecto quedaría por debajo de la música');
 
+  // Los deslizadores deben silenciar del todo en 0, llegar a full en 1 y bajar de forma perceptible.
+  if(volumeCurve(0)!==0||volumeCurve(1)!==1)throw new Error('La curva de volumen no cubre el recorrido completo');
+  for(let i=1;i<=20;i++)if(volumeCurve(i/20)<=volumeCurve((i-1)/20))throw new Error('La curva de volumen no es monótona');
+  if(volumeCurve(.5)>=.3)throw new Error('La mitad del deslizador debería sonar claramente más bajo');
+  const savedMaster=options.master,savedMusic=options.music,savedEffects=options.effects;
+  options.master=0;options.music=1;options.effects=1;
+  if(musicVolume()!==0||effectsVolume()!==0)throw new Error('El volumen general no silencia');
+  options.master=1;options.music=0;
+  if(musicVolume()!==0)throw new Error('El volumen de música no silencia');
+  if(effectsVolume()===0)throw new Error('Silenciar la música no debe silenciar los efectos');
+  options.music=1;options.effects=0;
+  if(effectsVolume()!==0)throw new Error('El volumen de efectos no silencia');
+  if(musicVolume()===0)throw new Error('Silenciar los efectos no debe silenciar la música');
+  options.master=savedMaster;options.music=savedMusic;options.effects=savedEffects;
+
   startMusic(); if(!musicTimer)throw new Error('La música no arrancó');
   window.__audioVoices=0; scheduleMusic(); if(window.__audioVoices===0)throw new Error('El secuenciador no generó voces');
   if(MUSIC_MELODY.filter(n=>n!=null).some(n=>![0,2,3,5,7,8,10,11].includes(((n%12)+12)%12)))throw new Error('Melodía fuera de la escala menor');
