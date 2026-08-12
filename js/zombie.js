@@ -345,7 +345,7 @@ class AdvancedRoleZombie extends Zombie {
     update(dt,tx,ty){
         const step=Math.min(dt,50)/16,dist=distance(this.x,this.y,tx,ty),toward=Math.atan2(ty-this.y,tx-this.x);this.skillTimer-=dt;
         if(this.role==='burrower')return this.updateBurrower(dt,tx,ty);
-        if(this.role==='leech'&&this.attached){this.x=player.x;this.y=player.y;this.charge-=dt;player.addBuff('leechSlow',180,.82,'LC','Leech');if(this.charge<=0){player.takeDamage(2);this.charge=700;}return;}
+        if(this.role==='leech'&&this.attached){this.x=player.x;this.y=player.y;this.charge-=dt;player.addBuff('leechSlow',180,.82,'LC','Leech');if(this.charge<=0){if(typeof damagePlayer==='function')damagePlayer(2,{kind:'enemy',label:enemyLabel(this)});else player.takeDamage(2);this.charge=700;}return;}
         if(this.role==='mimic'&&this.state==='hidden'){if(dist<165){this.state='move';this.speed*=1.5;}else return;}
         if(this.role==='phaseWalker'){if(this.skillTimer<=0){this.phaseVisible=!this.phaseVisible;this.skillTimer=this.phaseVisible?1500:1100;}if(!this.phaseVisible){this.move(toward,this.speed*1.2,step);return;}}
         if(this.role==='mirrorling'){const leadX=(Input.keys.d?130:0)-(Input.keys.a?130:0),leadY=(Input.keys.s?130:0)-(Input.keys.w?130:0);return super.update(dt,tx+leadX,ty+leadY);}

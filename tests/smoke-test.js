@@ -133,6 +133,23 @@ vm.runInThisContext(`
   resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
   update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
 
+  // Pantalla de muerte: la causa debe salir de lo que realmente hizo el daño.
+  lastDamageSource=null;
+  if(deathCauseText()!==t('gameOver.killedByUnknown'))throw new Error('Sin fuente conocida no debe inventarse una causa');
+  lastDamageSource={kind:'enemy',label:'Walker'};
+  if(!deathCauseText().includes('Walker'))throw new Error('No se nombra al enemigo que mató');
+  lastDamageSource={kind:'hazard',id:'spikes'};
+  if(!deathCauseText().includes(t('death.hazard.spikes')))throw new Error('No se nombra el peligro que mató');
+  lastDamageSource={kind:'hazard',id:'__desconocido__'};
+  if(!deathCauseText().includes(t('death.hazardGeneric')))throw new Error('Un peligro sin nombre debe caer en el texto genérico');
+  lastDamageSource={kind:'enemy',label:null};
+  if(!deathCauseText().includes(t('death.enemyFire')))throw new Error('Un disparo sin dueño debe atribuirse al fuego enemigo');
+  // damagePlayer debe registrar la fuente y seguir devolviendo si hubo daño.
+  resetEntities(); player=new Player(400,400); player.maxHealth=100; player.health=100; player.invulnerable=false;
+  lastDamageSource=null; damagePlayer(10,{kind:'hazard',id:'fire'});
+  if(lastDamageSource?.id!=='fire')throw new Error('damagePlayer no registró la fuente');
+  if(player.health!==90)throw new Error('damagePlayer no aplicó el daño');
+
   // Ramas de construcción: cada elección debe cambiar cómo se dispara, no sólo las estadísticas.
   resetEntities(); player=new Player(500,500); gameState='PLAYING'; currentRound=1;
   const perkUpgrades=upgradePool.filter(u=>u.perk);

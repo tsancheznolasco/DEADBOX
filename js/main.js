@@ -14,6 +14,11 @@ const OPTIONS_VERSION = 2;
 const VOLUME_EXPONENT = 1.7;
 // Combo: multiplicador visible que sube con cada baja y cuya ventana se acorta al crecer, para que
 // mantener la racha sea una decisión y no un accidente.
+// Quién ha causado el último daño, para poder decir de qué murió el jugador sin adivinarlo.
+let lastDamageSource = null;
+let firingZombie = null;
+function enemyLabel(z){if(!z)return null;return z.displayName||(typeof ENEMY_CATALOG!=='undefined'?ENEMY_CATALOG[z.type]?.name:null)||z.type||null;}
+function damagePlayer(amount,source){if(source)lastDamageSource=source;return player.takeDamage(amount);}
 const COMBO_CAP = 25;
 const COMBO_STEP = 0.08;
 function comboMultiplier(){return 1+Math.min(combo,COMBO_CAP)*COMBO_STEP;}
@@ -350,7 +355,7 @@ function spawnProjectile(x,y,angle,speed,damage,size,color,pierce=0){
     if(projectiles.length>=ENTITY_LIMITS.playerProjectiles)return null;const p=projectilePool.get();if(p){p.init(x,y,angle,speed,damage,size,color,'player',Math.max(pierce,player?.hasPower?.('piercingCore')?3:0));p.bounces=Math.max(player?.perks?.ricochet||0,(player?.buffs?.bounce||player?.hasPower?.('ricochet'))?1:0);p.secondary=!!player?.buffs?.popcorn;p.chain=Math.max(player?.perks?.arc||0,player?.hasPower?.('chainLightning')?1:0);projectiles.push(p);return p;}return null;
 }
 function spawnEnemyProjectile(x,y,angle,speed,damage,size,color,effect=null){
-    const limit=Math.min(ENTITY_LIMITS.enemyProjectiles,getEncounterLimits(currentRound).enemyProjectiles);if(enemyProjectiles.length>=limit)return null;const p=enemyProjectilePool.get();if(p){p.init(x,y,angle,speed*difficultyProfile.projectileSpeed,damage,size,color,'enemy',0);p.effect=effect;enemyProjectiles.push(p);return p;}return null;
+    const limit=Math.min(ENTITY_LIMITS.enemyProjectiles,getEncounterLimits(currentRound).enemyProjectiles);if(enemyProjectiles.length>=limit)return null;const p=enemyProjectilePool.get();if(p){p.init(x,y,angle,speed*difficultyProfile.projectileSpeed,damage,size,color,'enemy',0);p.effect=effect;p.ownerLabel=enemyLabel(firingZombie);enemyProjectiles.push(p);return p;}return null;
 }
 function getActiveEnemyCount(){return zombies.length+Spawner.warnings.length;}
 const ELITE_ABILITIES=['speed','shield','explosion','regen','projectile','quakeResist','hazard','mini'];
@@ -501,7 +506,7 @@ function updateObstacles(dt){
         if(d<o.radius+player.size/2){
             if(o.type==='mud')player.addBuff('slow',180,.6,'🟤','Lodo');
             else if(o.type==='hole'||o.type==='wall'||o.type==='crate')ensurePlayerSafe(true);
-            else if(o.tick<=0&&['fire','poison','spikes','blade','quake','shadow','mortar'].includes(o.type)){player.takeDamage(o.damage);o.tick=(o.type==='fire'||o.type==='poison'||o.type==='shadow')?600:900;}
+            else if(o.tick<=0&&['fire','poison','spikes','blade','quake','shadow','mortar'].includes(o.type)){damagePlayer(o.damage,{kind:'hazard',id:o.type});o.tick=(o.type==='fire'||o.type==='poison'||o.type==='shadow')?600:900;}
         }
         if(o.type==='mud'||o.type==='spikes'||o.type==='fire'||o.type==='poison'||o.type==='blade'){
             let hazardHit=false;
@@ -524,7 +529,7 @@ function beginRun(startRound=1,preparedPlayer=null){
     Input.reset();document.activeElement?.blur?.();
     ensureAudio();
     const beginSize=arenaSizeForRound(startRound);arena.width=beginSize.width;arena.height=beginSize.height;applyArenaTheme(startRound);lastAnnouncedZone=null;
-    player=preparedPlayer||new Player(arena.width/2,arena.height/2);player.x=arena.width/2;player.y=arena.height/2;player.health=player.maxHealth;player.buffs={};player.powers={};player.storedPower=null;player.regen=null;player.orbs=0;player.dashCharges=player.maxDashCharges;player.dashRechargeTimer=0;resetEntities();score=0;combo=0;comboTimer=0;kills=0;bestCombo=0;autosaveTimer=0;adaptivePressure=0;roundsWithoutDamage=0;modifierHistory=[];enemyIdentityHistory=[];synergyHistory=[];obstacleHistory=[];stolenPower=null;Spawner.resetSession();resetEncounterRotation();
+    player=preparedPlayer||new Player(arena.width/2,arena.height/2);player.x=arena.width/2;player.y=arena.height/2;player.health=player.maxHealth;player.buffs={};player.powers={};player.storedPower=null;player.regen=null;player.orbs=0;player.dashCharges=player.maxDashCharges;player.dashRechargeTimer=0;resetEntities();score=0;combo=0;comboTimer=0;kills=0;bestCombo=0;autosaveTimer=0;adaptivePressure=0;roundsWithoutDamage=0;modifierHistory=[];enemyIdentityHistory=[];synergyHistory=[];obstacleHistory=[];stolenPower=null;lastDamageSource=null;firingZombie=null;Spawner.resetSession();resetEncounterRotation();
     runInfo={startRound,difficulty:selectedDifficulty,advanced:startRound>1,startedAt:Date.now()};
     uiStartScreen.classList.add('hidden');document.getElementById('loadout-screen').classList.add('hidden');uiRecoveryScreen.classList.add('hidden');uiGameOverScreen.classList.add('hidden');uiPauseScreen.classList.add('hidden');uiHUD.classList.remove('hidden');
     configureRound(startRound);gameState='PLAYING';markSessionActive();saveProgress(startRound>1?'advanced-start':'new-game');lastTime=performance.now();musicDuck=1;startMusic();startTutorial();
@@ -589,8 +594,8 @@ function checkCollisions(){
         for(const o of obstacles){if(!p.active||!o.active||!['crate','wall'].includes(o.type))continue;if(circleHitsObstacle(p.x,p.y,p.size,o)){if(p.bounces>0){p.bounces--;const nx=Math.abs(p.x-o.x)>o.radius*.75?Math.sign(p.x-o.x):0,ny=nx?0:Math.sign(p.y-o.y);if(nx)p.vx*=-1;if(ny)p.vy*=-1;p.x+=nx*5;p.y+=ny*5;}else p.active=false;o.health-=p.damage;if(o.type==='crate'&&o.health<=0&&Math.random()<.14)spawnFood(o.x,o.y,null,'elite');}}
         for(const z of nearbyZombies(spatial,p.x,p.y)){if(!p.active||!z.active)continue;const dx=p.x-z.x,dy=p.y-z.y,reach=p.size+z.size/2;if(dx*dx+dy*dy<reach*reach){for(let i=0;i<4;i++)spawnParticle(p.x,p.y,z.color,3,3);const sourceAngle=Math.atan2(-p.vy,-p.vx);const died=z.takeDamage(p.damage,sourceAngle);if(options.damageNumbers&&damageNumbers.length<32)damageNumbers.push({x:z.x,y:z.y-z.size/2,value:Math.round(p.damage),life:650});if(p.chain>0){const arc=p.chain,targets=zombies.filter(other=>other.active&&other!==z&&distance(other.x,other.y,z.x,z.y)<170+arc*30).sort((a,b)=>distance(a.x,a.y,z.x,z.y)-distance(b.x,b.y,z.x,z.y)).slice(0,1+arc);for(const target of targets){addRing(target.x,target.y,24,'#60a5fa');const chained=target.takeDamage(p.damage*(.30+.08*arc));if(chained)handleEnemyDeath(target);}p.chain=0;}if(p.secondary){const a=Math.atan2(p.vy,p.vx);for(const off of[-.48,.48]){const child=spawnProjectile(p.x,p.y,a+off,Math.hypot(p.vx,p.vy)*.8,p.damage*.28,Math.max(2,p.size*.55),'#fef3c7',0);if(child)child.secondary=false;}p.secondary=false;}if(p.pierce>0){p.pierce--;p.damage*=.82;}else p.active=false;if(died)handleEnemyDeath(z);}}
     }
-    for(const p of enemyProjectiles){if(!p.active)continue;if(p.x<0||p.x>arena.width||p.y<0||p.y>arena.height){p.active=false;continue;}if(distance(p.x,p.y,player.x,player.y)<p.size+playerRadius()){p.active=false;if(player.orbs>0){player.orbs--;continue;}if(p.effect==='freeze')player.addBuff('frozen',3500,.68,'FR','Frozen');if(player.takeDamage(p.damage)){playSound('hit');shakeTime=140;shakeMagnitude=9;}}}
-    for(const z of zombies){if(!z.active)continue;const d=distance(player.x,player.y,z.x,z.y);if(!player.hasPower('ghost')&&d<playerRadius()+z.size/2&&z.attackCooldown<=0){if(player.orbs>0&&!z.isBoss){player.orbs--;const died=z.takeDamage((player.baseDamage+player.bonusDamage)*1.5);if(died)handleEnemyDeath(z);z.attackCooldown=700;continue;}if(player.takeDamage(z.damage)){playSound('hit');shakeTime=150;shakeMagnitude=12;const safe=Math.max(1,d);movePlayerByAxes((player.x-z.x)/safe*14,(player.y-z.y)/safe*14);}z.attackCooldown=650;}}
+    for(const p of enemyProjectiles){if(!p.active)continue;if(p.x<0||p.x>arena.width||p.y<0||p.y>arena.height){p.active=false;continue;}if(distance(p.x,p.y,player.x,player.y)<p.size+playerRadius()){p.active=false;if(player.orbs>0){player.orbs--;continue;}if(p.effect==='freeze')player.addBuff('frozen',3500,.68,'FR','Frozen');if(damagePlayer(p.damage,{kind:'enemy',label:p.ownerLabel})){playSound('hit');shakeTime=140;shakeMagnitude=9;}}}
+    for(const z of zombies){if(!z.active)continue;const d=distance(player.x,player.y,z.x,z.y);if(!player.hasPower('ghost')&&d<playerRadius()+z.size/2&&z.attackCooldown<=0){if(player.orbs>0&&!z.isBoss){player.orbs--;const died=z.takeDamage((player.baseDamage+player.bonusDamage)*1.5);if(died)handleEnemyDeath(z);z.attackCooldown=700;continue;}if(damagePlayer(z.damage,{kind:'enemy',label:enemyLabel(z)})){playSound('hit');shakeTime=150;shakeMagnitude=12;const safe=Math.max(1,d);movePlayerByAxes((player.x-z.x)/safe*14,(player.y-z.y)/safe*14);}z.attackCooldown=650;}}
     for(const f of foods){if(f.active&&distance(f.x,f.y,player.x,player.y)<f.size+player.size/2+20){const data=FOODS[f.type];data.apply(player);f.active=false;showPickup(data);saveProgress('food');}}
     for(const pickup of superPickups){if(pickup.active&&distance(pickup.x,pickup.y,player.x,player.y)<42+player.size/2){if(player.addPower(pickup.type,POWER_DEFS[pickup.type].duration)){pickup.active=false;if(pickup.type==='orbitals')player.orbs=Math.min(6,player.orbs+4);showPowerPickup(pickup.type);saveProgress('super-power');}}}
     projectiles=projectiles.filter(p=>p.active);enemyProjectiles=enemyProjectiles.filter(p=>p.active);zombies=zombies.filter(z=>z.active);foods=foods.filter(f=>f.active);superPickups=superPickups.filter(p=>p.active);
@@ -656,7 +661,7 @@ function update(dt,time){
         for(const f of foods)f.update(dt);for(const p of superPickups)p.update(dt);
         for(const trail of dashTrails){trail.life-=dt;if(trail.damage>0){for(const z of zombies){if(!z.active||trail.hit.has(z))continue;const vx=trail.to.x-trail.from.x,vy=trail.to.y-trail.from.y,l2=vx*vx+vy*vy||1,t=clamp(((z.x-trail.from.x)*vx+(z.y-trail.from.y)*vy)/l2,0,1),cx=trail.from.x+vx*t,cy=trail.from.y+vy*t;if(distance(z.x,z.y,cx,cy)<z.size/2+18){trail.hit.add(z);const died=z.takeDamage(trail.damage);if(died)handleEnemyDeath(z);}}}}dashTrails=dashTrails.filter(t=>t.life>0);
         garlicTick-=dt;
-        for(const z of zombies){try{const oldSpeed=z.speed,near=distance(z.x,z.y,player.x,player.y),freeze=player.hasPower('timeFreeze')?(z.isBoss ? .58 : z.isMiniBoss ? .42 : .2):1,behaviorDt=dt*difficultyProfile.abilityRate*freeze,ghostOffset=player.hasPower('ghost')&&!z.isBoss?180:0,targetX=player.x+Math.cos(time/820+z.x*.01)*ghostOffset,targetY=player.y+Math.sin(time/730+z.y*.01)*ghostOffset;z.speed*=difficultyProfile.speed/Math.max(.2,difficultyProfile.abilityRate);if(player.hasPower('gravityWell')&&!z.isBoss){const a=Math.atan2(player.y-z.y,player.x-z.x),pull=(z.isMiniBoss?0.18:.48)*dt/16;z.x+=Math.cos(a)*pull;z.y+=Math.sin(a)*pull;}if(player.buffs.icecream&&near<430)z.speed*=z.isBoss ? .86 : z.isMiniBoss ? .78 : .65;if(player.buffs.cheese&&near<150)z.speed*=z.isBoss ? .9 : .72;z.update(behaviorDt,targetX,targetY);z.speed=oldSpeed;if(hasModifier('Regeneración enemiga')&&z.lastDamaged>2600)z.health=Math.min(z.maxHealth,z.health+z.maxHealth*(z.isBoss ? .00018 : .00045)*dt/16);if(player.buffs.garlic&&near<115&&garlicTick<=0){const died=z.takeDamage(Math.min(4,(player.baseDamage+player.bonusDamage)*.12));if(died)handleEnemyDeath(z);}}catch(e){z.active=false;console.warn('Enemigo defectuoso retirado',e);}}
+        for(const z of zombies){try{const oldSpeed=z.speed,near=distance(z.x,z.y,player.x,player.y),freeze=player.hasPower('timeFreeze')?(z.isBoss ? .58 : z.isMiniBoss ? .42 : .2):1,behaviorDt=dt*difficultyProfile.abilityRate*freeze,ghostOffset=player.hasPower('ghost')&&!z.isBoss?180:0,targetX=player.x+Math.cos(time/820+z.x*.01)*ghostOffset,targetY=player.y+Math.sin(time/730+z.y*.01)*ghostOffset;z.speed*=difficultyProfile.speed/Math.max(.2,difficultyProfile.abilityRate);if(player.hasPower('gravityWell')&&!z.isBoss){const a=Math.atan2(player.y-z.y,player.x-z.x),pull=(z.isMiniBoss?0.18:.48)*dt/16;z.x+=Math.cos(a)*pull;z.y+=Math.sin(a)*pull;}if(player.buffs.icecream&&near<430)z.speed*=z.isBoss ? .86 : z.isMiniBoss ? .78 : .65;if(player.buffs.cheese&&near<150)z.speed*=z.isBoss ? .9 : .72;firingZombie=z;z.update(behaviorDt,targetX,targetY);firingZombie=null;z.speed=oldSpeed;if(hasModifier('Regeneración enemiga')&&z.lastDamaged>2600)z.health=Math.min(z.maxHealth,z.health+z.maxHealth*(z.isBoss ? .00018 : .00045)*dt/16);if(player.buffs.garlic&&near<115&&garlicTick<=0){const died=z.takeDamage(Math.min(4,(player.baseDamage+player.bonusDamage)*.12));if(died)handleEnemyDeath(z);}}catch(e){z.active=false;console.warn('Enemigo defectuoso retirado',e);}}
         if(garlicTick<=0)garlicTick=420;
         updateTutorial(dt);
         for(const n of damageNumbers){n.life-=dt;n.y-=dt*.025;}damageNumbers=damageNumbers.filter(n=>n.life>0);particles=particles.filter(p=>p.active&&p.life>0);checkCollisions();updateCamera();updateHUD(time);
@@ -748,9 +753,30 @@ function recoverGame(){
     setSelectedDifficulty(finite(d.difficulty,d.runInfo?.difficulty||100,1,500));runInfo=d.runInfo&&typeof d.runInfo==='object'?d.runInfo:{startRound:finite(d.startRound,1,1),difficulty:selectedDifficulty,advanced:finite(d.startRound,1,1)>1,startedAt:Date.now()};score=finite(d.score,0,0);kills=finite(d.kills,0,0);bestCombo=finite(d.bestCombo,0,0);adaptivePressure=finite(d.adaptivePressure,0,0,1);roundsWithoutDamage=finite(d.roundsWithoutDamage,0,0,20);combo=0;resetEntities();currentRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1);
     uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.add('hidden');uiHUD.classList.remove('hidden');startCountdown(()=>{configureRound(currentRound);gameState='PLAYING';lastTime=performance.now();saveProgress('recovered');startMusic();});
 }
-function gameOver(){Input.reset();stopMusic();if(player?.isDashing)player.finishDash(false);gameState='GAME_OVER';updateRecords(true);saveProgress('game-over');const d=getSafeSave();if(d){d.sessionActive=false;localStorage.setItem(SAVE_KEY,JSON.stringify(d));}uiHUD.classList.add('hidden');uiGameOverScreen.classList.remove('hidden');
+function deathCauseText(){
+    const source=lastDamageSource;
+    if(source?.kind==='enemy'&&source.label)return t('gameOver.killedBy',{name:source.label});
+    if(source?.kind==='hazard'){const name=t(`death.hazard.${source.id}`);return t('gameOver.killedBy',{name:typeof name==='string'&&!name.startsWith('death.')?name:t('death.hazardGeneric')});}
+    if(source?.kind==='enemy')return t('gameOver.killedBy',{name:t('death.enemyFire')});
+    return t('gameOver.killedByUnknown');
+}
+function gameOver(){
+    Input.reset();stopMusic();if(player?.isDashing)player.finishDash(false);gameState='GAME_OVER';
+    // El récord se lee antes de actualizarlo: si no, la partida siempre parecería empatar consigo misma.
+    const previousBest=records.highScore,finalScore=Math.floor(score);
+    updateRecords(true);saveProgress('game-over');
+    const d=getSafeSave();if(d){d.sessionActive=false;localStorage.setItem(SAVE_KEY,JSON.stringify(d));}
+    uiHUD.classList.add('hidden');uiGameOverScreen.classList.remove('hidden');
     const earned=awardScrap(scrapForRun(score,Math.max(0,currentRound-(runInfo?.startRound||1))));
-    document.getElementById('final-stats').textContent=`${t('gameOver.stats',{round:currentRound,score:Math.floor(score),kills})} · ${t('gameOver.scrap',{amount:earned})}`;}
+    document.getElementById('death-cause').textContent=deathCauseText();
+    document.getElementById('death-score').textContent=finalScore.toLocaleString();
+    const chase=document.getElementById('death-chase'),gap=previousBest-finalScore;
+    const beatenRecord=finalScore>previousBest&&!runInfo?.advanced;
+    chase.textContent=beatenRecord?t('gameOver.newBest'):gap>0?t('gameOver.chase',{points:gap.toLocaleString()}):t('gameOver.tied');
+    chase.classList.toggle('is-best',beatenRecord);
+    const rows=[[t('gameOver.roundLabel'),currentRound],[t('gameOver.killsLabel'),kills],[t('gameOver.comboLabel'),`×${(1+Math.min(bestCombo,COMBO_CAP)*COMBO_STEP).toFixed(1)}`],[t('gameOver.scrapLabel'),`+${earned}`]];
+    document.getElementById('death-stats').innerHTML=rows.map(([label,value])=>`<div><dt>${label}</dt><dd>${value}</dd></div>`).join('');
+}
 
 function showNotification(text){const el=document.getElementById('notifications');el.textContent=text;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1800);}
 let pickupToastTimer=null;
@@ -890,6 +916,8 @@ function enhanceSelect(select){
 }
 document.addEventListener('click',()=>closeAllSelects());
 window.addEventListener('keydown',event=>{if(event.key==='Escape')closeAllSelects();});
+// Reintentar sin tocar el ratón: en un portal cada paso extra tras morir pierde jugadores.
+window.addEventListener('keydown',event=>{if(gameState==='GAME_OVER'&&(event.key==='Enter'||event.key===' ')){event.preventDefault();initGame();}});
 
 function renderVolumeReadouts(){for(const key of['master','music','effects']){const el=document.getElementById(`opt-${key}-value`);if(el)el.textContent=`${Math.round(options[key]*100)}%`;}}
 function syncOptionsUI(){document.getElementById('opt-master').value=options.master;document.getElementById('opt-music').value=options.music;document.getElementById('opt-effects').value=options.effects;renderVolumeReadouts();document.getElementById('opt-shake').checked=options.screenShake;document.getElementById('opt-damage-numbers').checked=options.damageNumbers;document.getElementById('opt-reduced-effects').checked=options.reducedEffects;}

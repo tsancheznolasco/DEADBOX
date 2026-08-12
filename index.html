@@ -99,11 +99,18 @@
             
             <div id="game-over-screen" class="screen hidden">
                 <h1 data-i18n="gameOver.title">DEADBOX · Game Over</h1>
-                <p id="final-stats">Ronda: 1 | Puntuación: 0</p>
-                <div class="menu-stack compact">
-                    <button id="btn-restart" data-i18n="gameOver.retry">Retry</button>
-                    <button id="btn-gameover-menu" class="secondary" data-i18n="gameOver.menu">Main Menu</button>
+                <p id="death-cause" class="death-cause"></p>
+                <div class="death-score">
+                    <span id="death-score" class="death-score-value">0</span>
+                    <span class="death-score-label" data-i18n="gameOver.scoreLabel">Score</span>
                 </div>
+                <p id="death-chase" class="death-chase"></p>
+                <dl id="death-stats" class="death-stats"></dl>
+                <div class="death-actions">
+                    <button id="btn-restart" class="primary" data-i18n="gameOver.retry">Retry</button>
+                    <button id="btn-gameover-menu" data-i18n="gameOver.menu">Main Menu</button>
+                </div>
+                <p class="death-hint" data-i18n="gameOver.hint">Press Enter to go again</p>
             </div>
 
             <!-- Pantalla de Mejoras -->
