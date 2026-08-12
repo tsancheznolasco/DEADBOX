@@ -333,6 +333,34 @@ select, input[type="range"] { accent-color: #4c78a8; background: #101827; color:
 .bestiary-entry h3 { font-size: 1.05rem; color: #e2e8f0; margin-bottom: 4px; }
 .entry-meta { display: flex; justify-content: space-between; color: #94a3b8; font-size: .72rem; margin-bottom: 9px; }
 .bestiary-entry p { font-size: .78rem; line-height: 1.35; margin: 5px 0; color: #aebccd; }
+.scrap-line { color: #fbbf24; font-weight: 700; font-size: .92rem; margin-bottom: 16px; }
+.setup-hint { font-size: .78rem; line-height: 1.4; color: #7c8ba1; margin: 0; }
+#run-scrap { color: #fbbf24; font-size: .95rem; font-weight: 700; margin-top: 4px; }
+
+/* Aviso del tutorial de la primera ronda */
+.tutorial-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 86px;
+    transform: translateX(-50%);
+    padding: 10px 22px;
+    border: 1px solid rgba(125,211,252,.4);
+    border-radius: 999px;
+    background: rgba(8,15,27,.9);
+    color: #e0f2fe;
+    font-size: 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 18;
+    animation: tutorial-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes tutorial-pulse {
+    0%, 100% { border-color: rgba(125,211,252,.35); }
+    50% { border-color: rgba(125,211,252,.9); }
+}
+
 /* Taller de aspectos */
 .panel-header-actions { display: flex; align-items: center; gap: 14px; }
 .scrap-badge { padding: 6px 14px; border: 1px solid rgba(251,191,36,.45); border-radius: 999px; background: rgba(251,191,36,.1); color: #fbbf24; font-size: .85rem; font-weight: 700; white-space: nowrap; }

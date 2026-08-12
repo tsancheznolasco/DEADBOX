@@ -13,6 +13,7 @@
             <div id="hud" class="hidden">
                 <div class="hud-top-right">
                     <div id="score">Puntuación: 0</div>
+                    <div id="run-scrap">0 Scrap</div>
                     <div id="combo">Combo: 0</div>
                 </div>
                 <div class="hud-top-center">
@@ -47,15 +48,18 @@
                 <div id="active-effects" class="active-effects"></div>
                 <div id="super-powers" class="super-powers"></div>
                 <div id="pickup-toast" class="pickup-toast hidden"></div>
+                <div id="tutorial-hint" class="tutorial-hint hidden"></div>
             </div>
             
             <div id="start-screen" class="screen">
                 <h1 class="game-logo">DEADBOX</h1>
                 <p class="controls-line" data-i18n="menu.controls">WASD Move · Mouse Aim · Space Jump · Shift Dash · Q Power · Esc Pause</p>
                 <p id="high-score-display" class="record-line">Best 0 · Round 1</p>
+                <p id="scrap-display" class="scrap-line">0 Scrap</p>
                 <div class="run-setup">
                     <label><span data-i18n="setup.startingRound">Starting Round</span><select id="starting-round"></select></label>
                     <label><span data-i18n="setup.difficulty">Difficulty</span><select id="difficulty-select"></select></label>
+                    <p class="setup-hint" data-i18n="setup.difficultyHint">100% is the normal game. Lower is easier, higher is harder.</p>
                     <p id="difficulty-description" class="setup-description"></p>
                     <div id="start-summary" class="start-summary"></div>
                 </div>
@@ -82,7 +86,10 @@
             <div id="game-over-screen" class="screen hidden">
                 <h1 data-i18n="gameOver.title">DEADBOX · Game Over</h1>
                 <p id="final-stats">Ronda: 1 | Puntuación: 0</p>
-                <button id="btn-restart" data-i18n="gameOver.retry">Retry</button>
+                <div class="menu-stack compact">
+                    <button id="btn-restart" data-i18n="gameOver.retry">Retry</button>
+                    <button id="btn-gameover-menu" class="secondary" data-i18n="gameOver.menu">Main Menu</button>
+                </div>
             </div>
 
             <!-- Pantalla de Mejoras -->

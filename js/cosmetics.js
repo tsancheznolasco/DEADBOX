@@ -61,4 +61,5 @@ function awardScrap(amount){
     return gain;
 }
 // Recompensa de una partida: puntuación más una prima por cada ronda superada.
-function scrapForRun(runScore,roundsCleared){return Math.floor(Math.max(0,runScore)/100)+Math.max(0,roundsCleared)*5;}
+// Ritmo deliberadamente lento: un aspecto debe costar varias partidas, no una.
+function scrapForRun(runScore,roundsCleared){return Math.floor(Math.max(0,runScore)/220)+Math.max(0,roundsCleared)*3;}

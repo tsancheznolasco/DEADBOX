@@ -150,7 +150,10 @@ vm.runInThisContext(`
   if(buyCosmetic('box',paid.id))throw new Error('Se compró dos veces el mismo aspecto');
   if(!equipCosmetic('box',paid.id)||gameMeta.equipped.box!==paid.id)throw new Error('No se equipó un aspecto poseído');
   if(equipCosmetic('box','__inexistente__'))throw new Error('Se equipó un aspecto inexistente');
-  if(scrapForRun(1000,4)!==30)throw new Error('Recompensa de chatarra incorrecta');
+  if(scrapForRun(1000,4)!==16)throw new Error('Recompensa de chatarra incorrecta');
+  if(scrapForRun(0,0)!==0)throw new Error('Una partida vacía no debe dar chatarra');
+  if(scrapForRun(2000,8)<=scrapForRun(1000,4))throw new Error('Una mejor partida debe dar más chatarra');
+  if(scrapForRun(1500,6)>=COSMETICS.box.find(i=>i.price>0).price)throw new Error('Una sola partida no debería pagar un aspecto');
   if(awardScrap(25)!==25||gameMeta.scrap!==25)throw new Error('La chatarra no se acumuló');
   // Un guardado corrupto no debe dejar equipado algo no comprado.
   const repaired=normalizeCosmetics({scrap:-5,owned:{box:['gold']},equipped:{box:'void'}});

@@ -507,7 +507,7 @@ function beginRun(startRound=1,preparedPlayer=null){
     player=preparedPlayer||new Player(arena.width/2,arena.height/2);player.x=arena.width/2;player.y=arena.height/2;player.health=player.maxHealth;player.buffs={};player.powers={};player.storedPower=null;player.regen=null;player.orbs=0;player.dashCharges=player.maxDashCharges;player.dashRechargeTimer=0;resetEntities();score=0;combo=0;comboTimer=0;kills=0;bestCombo=0;autosaveTimer=0;adaptivePressure=0;roundsWithoutDamage=0;modifierHistory=[];enemyIdentityHistory=[];synergyHistory=[];obstacleHistory=[];stolenPower=null;Spawner.resetSession();resetEncounterRotation();
     runInfo={startRound,difficulty:selectedDifficulty,advanced:startRound>1,startedAt:Date.now()};
     uiStartScreen.classList.add('hidden');document.getElementById('loadout-screen').classList.add('hidden');uiRecoveryScreen.classList.add('hidden');uiGameOverScreen.classList.add('hidden');uiPauseScreen.classList.add('hidden');uiHUD.classList.remove('hidden');
-    configureRound(startRound);gameState='PLAYING';markSessionActive();saveProgress(startRound>1?'advanced-start':'new-game');lastTime=performance.now();musicDuck=1;startMusic();
+    configureRound(startRound);gameState='PLAYING';markSessionActive();saveProgress(startRound>1?'advanced-start':'new-game');lastTime=performance.now();musicDuck=1;startMusic();startTutorial();
 }
 function initGame(){if(selectedStartRound>1)prepareAdvancedStart();else beginRun(1);}
 
@@ -592,6 +592,7 @@ function handleEnemyDeath(z){
 function updateHUD(time){
     const hp=clamp(player.health/player.maxHealth*100,0,100);healthBar.style.width=`${hp}%`;healthText.textContent=`${Math.ceil(player.health)} / ${player.maxHealth}`;scoreText.textContent=t('hud.score',{score:Math.floor(score)});
     healthBarContainer.classList.toggle('low-health',hp<=30);
+    document.getElementById('run-scrap').textContent=t('hud.runScrap',{amount:runScrapSoFar()});
     const comboEl=document.getElementById('combo');comboEl.style.opacity=combo>1?1:0;comboEl.textContent=t('hud.combo',{combo});
     document.getElementById('round-info').textContent=gameState==='UPGRADING'?t('hud.safePause'):gameState==='COUNTDOWN'?t('hud.preparing'):t('hud.round',{round:currentRound,time:Math.max(0,Math.ceil(roundTimeLeft)),name:roundModifier});
     if(roundTimerBar){const timerPct=gameState==='PLAYING'&&roundDuration>0?clamp(roundTimeLeft/roundDuration*100,0,100):100;roundTimerBar.style.width=`${timerPct}%`;roundTimerBar.classList.toggle('low',timerPct<=25);}
@@ -628,6 +629,7 @@ function update(dt,time){
         garlicTick-=dt;
         for(const z of zombies){try{const oldSpeed=z.speed,near=distance(z.x,z.y,player.x,player.y),freeze=player.hasPower('timeFreeze')?(z.isBoss ? .58 : z.isMiniBoss ? .42 : .2):1,behaviorDt=dt*difficultyProfile.abilityRate*freeze,ghostOffset=player.hasPower('ghost')&&!z.isBoss?180:0,targetX=player.x+Math.cos(time/820+z.x*.01)*ghostOffset,targetY=player.y+Math.sin(time/730+z.y*.01)*ghostOffset;z.speed*=difficultyProfile.speed/Math.max(.2,difficultyProfile.abilityRate);if(player.hasPower('gravityWell')&&!z.isBoss){const a=Math.atan2(player.y-z.y,player.x-z.x),pull=(z.isMiniBoss?0.18:.48)*dt/16;z.x+=Math.cos(a)*pull;z.y+=Math.sin(a)*pull;}if(player.buffs.icecream&&near<430)z.speed*=z.isBoss ? .86 : z.isMiniBoss ? .78 : .65;if(player.buffs.cheese&&near<150)z.speed*=z.isBoss ? .9 : .72;z.update(behaviorDt,targetX,targetY);z.speed=oldSpeed;if(hasModifier('Regeneración enemiga')&&z.lastDamaged>2600)z.health=Math.min(z.maxHealth,z.health+z.maxHealth*(z.isBoss ? .00018 : .00045)*dt/16);if(player.buffs.garlic&&near<115&&garlicTick<=0){const died=z.takeDamage(Math.min(4,(player.baseDamage+player.bonusDamage)*.12));if(died)handleEnemyDeath(z);}}catch(e){z.active=false;console.warn('Enemigo defectuoso retirado',e);}}
         if(garlicTick<=0)garlicTick=420;
+        updateTutorial(dt);
         for(const n of damageNumbers){n.life-=dt;n.y-=dt*.025;}damageNumbers=damageNumbers.filter(n=>n.life>0);particles=particles.filter(p=>p.active&&p.life>0);checkCollisions();updateCamera();updateHUD(time);
         autosaveTimer+=dt;if(autosaveTimer>=8000){autosaveTimer=0;saveProgress('interval');}
         if(player.health<=0)gameOver();
@@ -717,6 +719,31 @@ function renderBestiary(){
 function setupBestiaryFilters(){const select=document.getElementById('bestiary-category'),categories=['all',...new Set(Object.values(ENEMY_CATALOG).map(e=>e.category))];select.innerHTML=categories.map(c=>`<option value="${c}">${t(`categories.${c}`)}</option>`).join('');}
 function openBestiary(){uiStartScreen.classList.add('hidden');uiBestiaryScreen.classList.remove('hidden');setupBestiaryFilters();renderBestiary();}
 function closeBestiary(){uiBestiaryScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');}
+// Tutorial de la primera ronda: cada paso espera a que el jugador use el control o a que expire.
+const TUTORIAL_STEPS=[
+    {key:'move',duration:4500,done:()=>Input.keys.w||Input.keys.a||Input.keys.s||Input.keys.d},
+    {key:'jump',duration:7000,done:()=>player&&player.lastJumpTime>0},
+    {key:'dash',duration:7000,done:()=>player&&(player.dashCharges<player.maxDashCharges||player.isDashing)}
+];
+let tutorialStep=0,tutorialTimer=0,tutorialActive=false;
+function startTutorial(){tutorialActive=currentRound===1&&!gameMeta.tutorialDone;tutorialStep=0;tutorialTimer=0;}
+function updateTutorial(dt){
+    const el=document.getElementById('tutorial-hint');if(!el)return;
+    if(!tutorialActive||gameState!=='PLAYING'||tutorialStep>=TUTORIAL_STEPS.length){el.classList.add('hidden');return;}
+    const step=TUTORIAL_STEPS[tutorialStep];
+    tutorialTimer+=dt;
+    el.textContent=t(`tutorial.${step.key}`);el.classList.remove('hidden');
+    if(step.done()||tutorialTimer>=step.duration){
+        tutorialStep++;tutorialTimer=0;
+        if(tutorialStep>=TUTORIAL_STEPS.length){tutorialActive=false;gameMeta.tutorialDone=true;saveMeta();el.classList.add('hidden');}
+    }
+}
+function runScrapSoFar(){return scrapForRun(score,Math.max(0,currentRound-(runInfo?.startRound||1)));}
+function refreshMenuStats(){
+    document.getElementById('high-score-display').textContent=t('records.line',{score:records.highScore,round:records.highRound});
+    document.getElementById('scrap-display').textContent=t('records.scrapTotal',{amount:gameMeta.scrap});
+}
+
 let workshopSlot='box';
 const workshopSelection={};
 function openWorkshop(){
@@ -724,7 +751,7 @@ function openWorkshop(){
     for(const slot of COSMETIC_SLOTS)workshopSelection[slot]=gameMeta.equipped[slot];
     renderWorkshop();
 }
-function closeWorkshop(){uiWorkshopScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');}
+function closeWorkshop(){uiWorkshopScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');refreshMenuStats();}
 function renderWorkshop(){
     document.getElementById('workshop-scrap').textContent=t('workshop.scrap',{amount:gameMeta.scrap});
     for(const tab of document.querySelectorAll('.workshop-tab'))tab.classList.toggle('active',tab.dataset.slot===workshopSlot);
@@ -796,12 +823,13 @@ function previewVolume(kind){
 }
 function bindOption(id,key,event='input',preview=null){document.getElementById(id).addEventListener(event,e=>{options[key]=e.target.type==='checkbox'?e.target.checked:Number(e.target.value);saveOptions();if(preview)previewVolume(preview);});}
 function setupRunSelectors(){
-    unlockStartingRounds(records.highRound);const difficulty=document.getElementById('difficulty-select'),starting=document.getElementById('starting-round');difficulty.innerHTML=DIFFICULTY_VALUES.map(value=>`<option value="${value}">${value}%</option>`).join('');difficulty.value=String(selectedDifficulty);starting.innerHTML=START_ROUNDS.map(round=>`<option value="${round}" ${round>gameMeta.unlockedStartRound?'disabled':''}>${t('setup.round',{round})}</option>`).join('');if(selectedStartRound>gameMeta.unlockedStartRound)setSelectedStartRound(1);starting.value=String(selectedStartRound);renderRunSetup();
+    unlockStartingRounds(records.highRound);const difficulty=document.getElementById('difficulty-select'),starting=document.getElementById('starting-round');difficulty.innerHTML=DIFFICULTY_VALUES.map(value=>`<option value="${value}">${value}% · ${t(value<100?'setup.easier':value===100?'setup.normal':'setup.harder')}</option>`).join('');difficulty.value=String(selectedDifficulty);starting.innerHTML=START_ROUNDS.map(round=>`<option value="${round}" ${round>gameMeta.unlockedStartRound?'disabled':''}>${t('setup.round',{round})}</option>`).join('');if(selectedStartRound>gameMeta.unlockedStartRound)setSelectedStartRound(1);starting.value=String(selectedStartRound);renderRunSetup();
 }
 function renderRunSetup(){document.getElementById('difficulty-description').textContent=t(difficultyDescriptionKey());document.getElementById('start-summary').innerHTML=`<span>${t('setup.startingRound')}</span><strong>${t('setup.round',{round:selectedStartRound})}</strong><span>${t('setup.difficulty')}</span><strong>${selectedDifficulty}%</strong><span>${t('setup.loadout')}</span><strong>${selectedStartRound>1?t('setup.generated'):t('setup.standard')}</strong><span>${t('setup.eligibility')}</span><strong>${selectedStartRound>1?t('setup.advanced'):t('setup.standard')}</strong>`;}
 
-soundEnabled=records.soundEnabled;document.getElementById('high-score-display').textContent=t('records.line',{score:records.highScore,round:records.highRound});
-document.getElementById('btn-start').addEventListener('click',initGame);document.getElementById('btn-continue').addEventListener('click',recoverGame);document.getElementById('btn-restart').addEventListener('click',initGame);document.getElementById('btn-recover').addEventListener('click',recoverGame);document.getElementById('btn-newgame').addEventListener('click',initGame);
+soundEnabled=records.soundEnabled;refreshMenuStats();
+document.getElementById('btn-start').addEventListener('click',initGame);document.getElementById('btn-continue').addEventListener('click',recoverGame);document.getElementById('btn-restart').addEventListener('click',initGame);
+document.getElementById('btn-gameover-menu').addEventListener('click',()=>{gameState='START';uiGameOverScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();refreshMenuStats();});document.getElementById('btn-recover').addEventListener('click',recoverGame);document.getElementById('btn-newgame').addEventListener('click',initGame);
 document.getElementById('difficulty-select').addEventListener('change',e=>{setSelectedDifficulty(Number(e.target.value));renderRunSetup();});document.getElementById('starting-round').addEventListener('change',e=>{setSelectedStartRound(Number(e.target.value));renderRunSetup();});
 document.getElementById('btn-loadout-start').addEventListener('click',startPreparedLoadout);document.getElementById('btn-loadout-reroll').addEventListener('click',rerollAdvancedLoadout);document.getElementById('btn-loadout-back').addEventListener('click',()=>{gameState='START';document.getElementById('loadout-screen').classList.add('hidden');uiStartScreen.classList.remove('hidden');preparedLoadout=null;});
 document.getElementById('btn-workshop').addEventListener('click',openWorkshop);document.getElementById('btn-workshop-back').addEventListener('click',closeWorkshop);
@@ -811,5 +839,5 @@ document.getElementById('btn-options').addEventListener('click',()=>openOptions(
 bindOption('opt-master','master','input','effects');bindOption('opt-music','music','input','music');bindOption('opt-effects','effects','input','effects');bindOption('opt-shake','screenShake','change');bindOption('opt-damage-numbers','damageNumbers','change');bindOption('opt-reduced-effects','reducedEffects','change');
 document.getElementById('btn-fullscreen').addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.();});
 for(const id of['language-main','language-pause','language-options'])document.getElementById(id).addEventListener('change',e=>setLanguage(e.target.value));
-window.addEventListener('language_changed',()=>{document.getElementById('high-score-display').textContent=t('records.line',{score:records.highScore,round:records.highRound});setupRunSelectors();if(preparedLoadout)renderLoadoutSummary();if(!uiBestiaryScreen.classList.contains('hidden')){setupBestiaryFilters();renderBestiary();}});
+window.addEventListener('language_changed',()=>{refreshMenuStats();setupRunSelectors();if(preparedLoadout)renderLoadoutSummary();if(!uiBestiaryScreen.classList.contains('hidden')){setupBestiaryFilters();renderBestiary();}});
 setLanguage(currentLanguage);setupRunSelectors();checkRecovery();requestAnimationFrame(gameLoop);
