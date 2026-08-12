@@ -133,6 +133,31 @@ vm.runInThisContext(`
   resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
   update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
 
+  // Control táctil: el joystick mueve de forma analógica y sin él manda el teclado.
+  resetEntities(); player=new Player(500,500); gameState='PLAYING';
+  const moveWith=(move,keys={})=>{
+    const start=player.x, startY=player.y;
+    Input.move.x=move.x; Input.move.y=move.y;
+    Object.assign(Input.keys,{w:false,a:false,s:false,d:false},keys);
+    for(let i=0;i<10;i++)update(16,performance.now()+i*16);
+    Input.move.x=0;Input.move.y=0;Object.assign(Input.keys,{w:false,a:false,s:false,d:false});
+    return {dx:player.x-start, dy:player.y-startY};
+  };
+  const stickRight=moveWith({x:1,y:0});
+  if(stickRight.dx<=0||Math.abs(stickRight.dy)>1)throw new Error('El joystick no mueve en su dirección');
+  const stickHalf=moveWith({x:.4,y:0});
+  if(stickHalf.dx>=stickRight.dx)throw new Error('El joystick debería ser analógico, no todo o nada');
+  const keyLeft=moveWith({x:0,y:0},{a:true});
+  if(keyLeft.dx>=0)throw new Error('El teclado dejó de mover cuando no hay joystick');
+  // Sin ratón hay que apuntar solo: al enemigo más cercano.
+  resetEntities(); player.x=500; player.y=500;
+  queueDirectSpawn('normal',900,500); const near=queueDirectSpawn('normal',500,320);
+  const aim=touchAimPoint();
+  if(aim.x!==near.x||aim.y!==near.y)throw new Error('El apuntado automático no elige al más cercano');
+  resetEntities();
+  const fallback=touchAimPoint();
+  if(!Number.isFinite(fallback.x)||!Number.isFinite(fallback.y))throw new Error('Sin enemigos el apuntado debe seguir siendo válido');
+
   // En un portal el juego va dentro de un iframe: al perder el foco debe pararse y callarse,
   // y no reanudarse solo al volver para no devolver al jugador directo a un golpe.
   initGame(); startMusic();

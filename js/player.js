@@ -84,9 +84,15 @@ class Player {
         if (input.keys.s) dy += 1;
         if (input.keys.a) dx -= 1;
         if (input.keys.d) dx += 1;
-        
+
+        // El joystick manda cuando se está usando: conserva su magnitud para moverse despacio.
+        const stick = input.move;
+        const stickLength = stick ? Math.hypot(stick.x, stick.y) : 0;
+        if (stickLength > .12) { dx = stick.x; dy = stick.y; }
+
         const moveLength=Math.hypot(dx,dy);
-        if(moveLength>0){dx/=moveLength;dy/=moveLength;}
+        if(moveLength>1){dx/=moveLength;dy/=moveLength;}
+        else if(moveLength>0&&stickLength<=.12){dx/=moveLength;dy/=moveLength;}
 
         this.updateDashCooldown(dt);
         if (!this.isDashing && input.consume?.('shift')) this.tryDash(input);

@@ -38,6 +38,18 @@ function campEdges(){
     const edges=[{edge:2,d:left},{edge:3,d:right},{edge:0,d:top},{edge:1,d:bottom}].sort((a,b)=>a.d-b.d);
     return [edges[0].edge,edges[1].edge];
 }
+// Sin ratón no hay a dónde apuntar, así que en táctil el disparo automático busca al enemigo más
+// cercano; si no queda ninguno, se mantiene la orientación actual.
+function touchAimPoint(){
+    let best=null,bestDistance=Infinity;
+    for(const z of zombies){
+        if(!z.active)continue;
+        const d=(z.x-player.x)**2+(z.y-player.y)**2;
+        if(d<bestDistance){bestDistance=d;best=z;}
+    }
+    if(best)return{x:best.x,y:best.y};
+    return{x:player.x+Math.cos(player.aimAngle)*120,y:player.y+Math.sin(player.aimAngle)*120};
+}
 function enemyLabel(z){if(!z)return null;return z.displayName||(typeof ENEMY_CATALOG!=='undefined'?ENEMY_CATALOG[z.type]?.name:null)||z.type||null;}
 function damagePlayer(amount,source){if(source)lastDamageSource=source;return player.takeDamage(amount);}
 // El arco hacía daño pero sólo dibujaba un anillo diminuto, así que parecía no funcionar.
@@ -688,7 +700,8 @@ function update(dt,time){
     if(gameState!=='PLAYING')return;
     try{
         if(shakeTime>0)shakeTime-=dt;if(comboTimer>0){comboTimer-=dt;if(comboTimer<=0)combo=0;}
-        const input={keys:Input.keys,mouse:{x:Input.mouse.x+camera.x,y:Input.mouse.y+camera.y},consume:key=>Input.consume(key)};
+        const aim=Input.touchActive?touchAimPoint():{x:Input.mouse.x+camera.x,y:Input.mouse.y+camera.y};
+        const input={keys:Input.keys,mouse:aim,move:Input.move,consume:key=>Input.consume(key)};
         player.update(dt,input,projectiles,{left:0,right:arena.width,top:0,bottom:arena.height},time);
         updateRound(dt);Spawner.update(dt);updateObstacles(dt);
         for(const r of earthquakeRings){r.radius+=300*dt/1000;r.opacity-=1.5*dt/1000;}earthquakeRings=earthquakeRings.filter(r=>r.opacity>0);
@@ -708,7 +721,7 @@ function update(dt,time){
 function drawArena(){ctx.fillStyle=arena.color;ctx.fillRect(0,0,arena.width,arena.height);ctx.strokeStyle=arena.gridColor;ctx.lineWidth=1;for(let x=0;x<arena.width;x+=100){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,arena.height);ctx.stroke();}for(let y=0;y<arena.height;y+=100){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(arena.width,y);ctx.stroke();}ctx.strokeStyle=arena.wallColor;ctx.lineWidth=20;ctx.strokeRect(0,0,arena.width,arena.height);}
 function drawVisibilityMask(){if(!hasModifier('Oscuridad')&&!hasModifier('Niebla')&&!document.body.classList.contains('round-darkness'))return;const dark=hasModifier('Oscuridad')||document.body.classList.contains('round-darkness'),inner=dark?170:300,outer=dark?520:720,g=ctx.createRadialGradient(player.x,player.y,inner,player.x,player.y,outer);g.addColorStop(0,'rgba(2,6,23,0)');g.addColorStop(1,dark?'rgba(2,6,23,.82)':'rgba(148,163,184,.56)');ctx.fillStyle=g;ctx.fillRect(0,0,arena.width,arena.height);}
 function draw(){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);if(!player||!['PLAYING','UPGRADING','COUNTDOWN','PAUSED','GAME_OVER'].includes(gameState))return;ctx.save();ctx.translate(-camera.x,-camera.y);drawArena();drawObstacles();drawVisibilityMask();Spawner.draw(ctx);for(const trail of dashTrails){ctx.save();ctx.globalAlpha=clamp(trail.life/trail.maxLife,0,.72);ctx.strokeStyle=trail.color;ctx.lineWidth=trail.damage?22:9;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(trail.from.x,trail.from.y);ctx.lineTo(trail.to.x,trail.to.y);ctx.stroke();ctx.restore();}for(const r of earthquakeRings){ctx.globalAlpha=r.opacity;ctx.strokeStyle=r.color||'#fbbf24';ctx.lineWidth=5;ctx.beginPath();ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}for(const f of foods)f.draw(ctx);for(const p of superPickups)p.draw(ctx);for(const p of particles)p.draw(ctx);for(const p of projectiles)p.draw(ctx);for(const p of enemyProjectiles)p.draw(ctx);for(const z of zombies){ctx.save();if(hasModifier('Niebla')){const d=distance(z.x,z.y,player.x,player.y);ctx.globalAlpha=d>600 ? .35 : d>420 ? .62 : 1;}z.draw(ctx);ctx.restore();}if(player.hasPower('gravityWell')){ctx.save();ctx.strokeStyle='rgba(129,140,248,.34)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x,player.y,210+Math.sin(Date.now()/120)*8,0,Math.PI*2);ctx.stroke();ctx.restore();}player.draw(ctx);if(options.damageNumbers){ctx.font='600 13px system-ui';ctx.textAlign='center';ctx.fillStyle='#e2e8f0';for(const n of damageNumbers){ctx.globalAlpha=clamp(n.life/300,0,1);ctx.fillText(n.value,n.x,n.y);}ctx.globalAlpha=1;}ctx.restore();}
-function gameLoop(time){let dt=Math.min(80,Math.max(0,time-lastTime));lastTime=time;update(dt,time);draw();requestAnimationFrame(gameLoop);}
+function gameLoop(time){let dt=Math.min(80,Math.max(0,time-lastTime));lastTime=time;update(dt,time);draw();document.body.classList.toggle('in-run',gameState==='PLAYING');requestAnimationFrame(gameLoop);}
 
 const upgradePool = [
     {key:'maxHealth',apply:()=>{player.maxHealth+=20;player.health=Math.min(player.maxHealth,player.health+player.maxHealth*.5)}},
@@ -837,6 +850,15 @@ function handleWindowVisible(){
 document.addEventListener('visibilitychange',()=>{if(document.hidden)handleWindowHidden();else handleWindowVisible();});
 window.addEventListener('blur',handleWindowHidden);
 window.addEventListener('focus',handleWindowVisible);
+// Girar a vertical tapa la partida con el aviso de rotación, así que se pausa en vez de seguir
+// jugándose detrás.
+function checkOrientation(){
+    if(!Input.touchActive)return;
+    const portrait=window.matchMedia?.('(orientation: portrait)')?.matches??window.innerHeight>window.innerWidth;
+    if(portrait&&gameState==='PLAYING')pauseGame({silent:true});
+}
+window.addEventListener('orientationchange',()=>setTimeout(checkOrientation,120));
+window.addEventListener('resize',checkOrientation);
 
 function renderBestiary(){
     const status=document.getElementById('bestiary-status').value,category=document.getElementById('bestiary-category').value,grid=document.getElementById('bestiary-grid');let entries=Object.values(ENEMY_CATALOG);

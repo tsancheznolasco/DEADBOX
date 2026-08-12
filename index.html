@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>DEADBOX</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -52,6 +52,26 @@
                 <div id="super-powers" class="super-powers"></div>
                 <div id="pickup-toast" class="pickup-toast hidden"></div>
                 <div id="tutorial-hint" class="tutorial-hint hidden"></div>
+            </div>
+
+            <!-- Controles táctiles: sólo aparecen cuando se juega con el dedo -->
+            <div id="touch-controls" class="touch-controls">
+                <div id="touch-move" class="touch-move"></div>
+                <div id="touch-stick-base" class="touch-stick-base"></div>
+                <div id="touch-thumb" class="touch-thumb"></div>
+                <div class="touch-buttons">
+                    <button id="touch-power" class="touch-btn" aria-label="Power">Q</button>
+                    <button id="touch-dash" class="touch-btn" aria-label="Dash">»</button>
+                    <button id="touch-jump" class="touch-btn touch-btn-wide" aria-label="Jump">⤒</button>
+                </div>
+                <button id="touch-pause" class="touch-pause" aria-label="Pause">❚❚</button>
+            </div>
+
+            <!-- La arena es apaisada: en vertical no cabe y el HUD se solapa -->
+            <div id="rotate-prompt" class="rotate-prompt">
+                <div class="rotate-icon">▭</div>
+                <p class="rotate-title" data-i18n="rotate.title">Rotate your device</p>
+                <p class="rotate-body" data-i18n="rotate.body">DEADBOX is played in landscape.</p>
             </div>
             
             <div id="start-screen" class="screen">
