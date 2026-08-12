@@ -205,27 +205,28 @@ function playSound(type){
 
 // Música procedural: una pieza escrita (progresión Am–F–C–G, melodía, bajo, pad y batería).
 // Cada zona transpone y retimbra el mismo tema, así el juego mantiene una identidad reconocible.
-const MUSIC_BPM=124;
+const MUSIC_BPM=88;                                       // lento y sombrío
 const MUSIC_ROOT=110;                                     // A2
-const MUSIC_PROGRESSION=[{root:0,triad:[0,3,7]},{root:-4,triad:[0,4,7]},{root:3,triad:[0,4,7]},{root:-2,triad:[0,4,7]}];
+// i – VI – iv – V en La menor. El V mayor (con SOL#) da el color de menor armónica: tenso y misterioso.
+const MUSIC_PROGRESSION=[{root:0,triad:[0,3,7]},{root:-4,triad:[0,4,7]},{root:5,triad:[0,3,7]},{root:7,triad:[0,4,7]}];
 const MUSIC_MELODY=[                                      // semitonos sobre la tónica; null = silencio
-    12,null,15,12, 19,null,17,null,
-    20,null,19,17, 15,null,12,null,
-    10,null,15,19, 22,null,19,null,
-    17,null,14,17, 14,null,10,null,
-    19,null,22,19, 24,null,22,null,
-    22,null,20,19, 17,null,15,null,
-    15,null,19,22, 24,null,27,null,
-    26,null,22,null, 19,null,14,null
+    12,null,null,null, 15,null,14,null,
+    12,null,null,null,  8,null,10,null,
+    17,null,null,null, 15,null,14,null,
+    11,null,null,null, 12,null,null,null,
+    19,null,17,null, 15,null,12,null,
+    20,null,19,null, 17,null,15,null,
+    17,null,15,null, 14,null,12,null,
+    11,null,12,null, 11,null,null,null
 ];
 const MUSIC_ZONES={
-    containment:{transpose:0,wave:'square',tempo:1,cutoff:1900},
-    foundry:{transpose:-2,wave:'sawtooth',tempo:1.04,cutoff:1500},
-    bloom:{transpose:3,wave:'triangle',tempo:1.02,cutoff:2300},
-    cryo:{transpose:5,wave:'square',tempo:1.06,cutoff:2700},
-    void:{transpose:-4,wave:'triangle',tempo:1.1,cutoff:1700},
-    ember:{transpose:-5,wave:'sawtooth',tempo:1.14,cutoff:1400},
-    null:{transpose:-7,wave:'square',tempo:1.2,cutoff:1250}
+    containment:{transpose:0,wave:'triangle',tempo:1,cutoff:1100},
+    foundry:{transpose:-2,wave:'sawtooth',tempo:1.03,cutoff:950},
+    bloom:{transpose:3,wave:'triangle',tempo:1.02,cutoff:1250},
+    cryo:{transpose:5,wave:'sine',tempo:1.05,cutoff:1450},
+    void:{transpose:-4,wave:'triangle',tempo:1.08,cutoff:1000},
+    ember:{transpose:-5,wave:'sawtooth',tempo:1.12,cutoff:900},
+    null:{transpose:-7,wave:'triangle',tempo:1.15,cutoff:800}
 };
 let musicTimer=null,musicNextTime=0,musicStep=0,musicGain=null,musicDelay=null,musicNoise=null;
 function musicVolume(){return soundEnabled?clamp(options.master*options.music,0,1):0;}
@@ -255,7 +256,8 @@ function stopMusic(){
 function scheduleMusic(){
     if(!audioCtx||!musicGain)return;
     const zone=MUSIC_ZONES[arena.themeId]||MUSIC_ZONES.containment,stepSeconds=musicStepSeconds(zone);
-    try{musicGain.gain.value=musicVolume()*.22;}catch{return;}
+    // El eco debe caer sobre la rejilla del tempo; si no, suena como notas sueltas fuera de ritmo.
+    try{musicGain.gain.value=musicVolume()*.22;if(musicDelay)musicDelay.delayTime.value=stepSeconds*2;}catch{return;}
     let guard=0;
     while(musicNextTime<audioCtx.currentTime+.35&&guard++<24){playMusicStep(zone,musicStep,musicNextTime,stepSeconds);musicNextTime+=stepSeconds;musicStep++;}
     if(musicNextTime<audioCtx.currentTime)musicNextTime=audioCtx.currentTime+.05;
@@ -274,16 +276,17 @@ function musicDrum(kind,at){
     if(!musicGain)return;
     if(kind==='kick'){
         const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();
-        osc.type='sine';osc.frequency.setValueAtTime(140,at);osc.frequency.exponentialRampToValueAtTime(45,at+.11);
-        gain.gain.setValueAtTime(.9,at);gain.gain.exponentialRampToValueAtTime(.0001,at+.2);
-        osc.connect(gain);gain.connect(musicGain);osc.start(at);osc.stop(at+.22);return;
+        osc.type='sine';osc.frequency.setValueAtTime(120,at);osc.frequency.exponentialRampToValueAtTime(38,at+.13);
+        gain.gain.setValueAtTime(1,at);gain.gain.exponentialRampToValueAtTime(.0001,at+.26);
+        osc.connect(gain);gain.connect(musicGain);osc.start(at);osc.stop(at+.28);return;
     }
-    const snare=kind==='snare',source=audioCtx.createBufferSource(),gain=audioCtx.createGain(),filter=audioCtx.createBiquadFilter();
+    // Pulso grave y apagado en lugar de charles: sin brillo agudo que compita con la melodía.
+    const source=audioCtx.createBufferSource(),gain=audioCtx.createGain(),filter=audioCtx.createBiquadFilter();
     source.buffer=musicNoiseBuffer();
-    filter.type=snare?'bandpass':'highpass';filter.frequency.setValueAtTime(snare?1900:7200,at);
-    gain.gain.setValueAtTime(snare? .34 : .09,at);gain.gain.exponentialRampToValueAtTime(.0001,at+(snare? .17 : .05));
+    filter.type='bandpass';filter.frequency.setValueAtTime(650,at);
+    gain.gain.setValueAtTime(.14,at);gain.gain.exponentialRampToValueAtTime(.0001,at+.16);
     source.connect(filter);filter.connect(gain);gain.connect(musicGain);
-    source.start(at);source.stop(at+(snare? .2 : .07));
+    source.start(at);source.stop(at+.18);
 }
 function playMusicStep(zone,step,at,stepSeconds){
     if(!musicGain)return;
@@ -291,12 +294,16 @@ function playMusicStep(zone,step,at,stepSeconds){
         const pos=step%MUSIC_MELODY.length,bar=Math.floor(pos/8)%MUSIC_PROGRESSION.length,beat=pos%8,chord=MUSIC_PROGRESSION[bar];
         const pitch=n=>MUSIC_ROOT*Math.pow(2,(zone.transpose+n)/12);
         if(beat===0||beat===4)musicDrum('kick',at);
-        if(beat===2||beat===6)musicDrum('snare',at);
-        musicDrum('hat',at);
-        if(beat%2===0)musicTone(pitch(chord.root+(beat===4?7:0))/2,at,stepSeconds*1.7,{wave:'triangle',level:.34,cutoff:600});
-        if(beat===0)for(const interval of chord.triad)musicTone(pitch(chord.root+interval),at,stepSeconds*7.4,{wave:'triangle',level:.055,cutoff:1100});
+        if(beat===6)musicDrum('pulse',at);
+        // Bajo sostenido en media nota, con subgrave una octava por debajo para dar peso.
+        if(beat===0||beat===4){
+            const bassRoot=pitch(chord.root)/2;
+            musicTone(bassRoot,at,stepSeconds*3.6,{wave:'sawtooth',level:.42,cutoff:340});
+            musicTone(bassRoot/2,at,stepSeconds*3.6,{wave:'sine',level:.3,cutoff:190});
+        }
+        if(beat===0)for(const interval of chord.triad)musicTone(pitch(chord.root+interval),at,stepSeconds*7.4,{wave:'triangle',level:.06,cutoff:720});
         const note=MUSIC_MELODY[pos];
-        if(note!=null)musicTone(pitch(note),at,stepSeconds*(MUSIC_MELODY[(pos+1)%MUSIC_MELODY.length]==null?1.85:.92),{wave:zone.wave,level:.17,cutoff:zone.cutoff,send:.32});
+        if(note!=null)musicTone(pitch(note),at,stepSeconds*(MUSIC_MELODY[(pos+1)%MUSIC_MELODY.length]==null?2.6:1.2),{wave:zone.wave,level:.15,cutoff:zone.cutoff,send:.24});
     }catch(e){}
 }
 
@@ -508,6 +515,9 @@ function updateRound(dt){
     for(const event of roundEvents)if(!event.fired&&progress>=event.progress){event.fired=true;triggerRoundEvent(event.type);}
     if(hasModifier('Terremotos')&&Math.floor(progress*5)>eventCount){eventCount++;createHazard('quake',player.x+(Math.random()-.5)*420,player.y+(Math.random()-.5)*360,{radius:105,warning:1100,duration:700,damage:10});}
     const bossTimedOut=currentRound%5===0&&roundTimeLeft<=0;
+    // Arena limpia con presupuesto pendiente: las siguientes oleadas entran encadenadas en vez de
+    // esperar el temporizador, con un tope de avisos simultáneos para que no aparezca un muro de golpe.
+    if(!bossTimedOut&&enemiesQueued<enemiesBudget&&!zombies.some(z=>z.active)&&Spawner.warnings.length<4&&spawnTimer>120)spawnTimer=120;
     if(!bossTimedOut&&spawnTimer<=0&&enemiesQueued<enemiesBudget&&getActiveEnemyCount()<getEncounterLimits(currentRound).activeEnemies){const count=Spawner.spawnGroup(currentRound);enemiesQueued+=Math.max(1,count);const phaseFactor=roundPhase==='start' ? 1.2 : roundPhase==='mid' ? .92 : .76,targetPressure=zombies.some(z=>z.active&&z.type==='powerThief') ? .82 : 1;spawnTimer=spawnRate*phaseFactor*targetPressure*(.86+Math.random()*.28);}
     const bossRound=currentRound%5===0,bossAlive=bossForRound&&bossForRound.active,regularAlive=zombies.some(z=>z.active&&!z.isBoss&&!z.isMiniBoss)||Spawner.warnings.length>0;
     // Ronda despejada: ya se gastó el presupuesto de la ronda y no queda nada vivo ni por aparecer.

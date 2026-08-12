@@ -135,7 +135,8 @@ vm.runInThisContext(`
 
   startMusic(); if(!musicTimer)throw new Error('La música no arrancó');
   window.__audioVoices=0; scheduleMusic(); if(window.__audioVoices===0)throw new Error('El secuenciador no generó voces');
-  if(MUSIC_MELODY.filter(n=>n!=null).some(n=>![0,2,3,5,7,8,10].includes(((n%12)+12)%12)))throw new Error('Melodía fuera de la escala menor');
+  if(MUSIC_MELODY.filter(n=>n!=null).some(n=>![0,2,3,5,7,8,10,11].includes(((n%12)+12)%12)))throw new Error('Melodía fuera de la escala menor');
+  if(Math.abs(musicDelay.delayTime.value-musicStepSeconds(MUSIC_ZONES.containment)*2)>1e-6)throw new Error('El eco no está sincronizado al tempo');
   stopMusic(); if(musicTimer)throw new Error('La música no se detuvo');
 `);
 
