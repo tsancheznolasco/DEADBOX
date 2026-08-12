@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEADBOX</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui-layer">
+            <div id="hud" class="hidden">
+                <div class="hud-top-left">
+                    <div id="health-bar-container">
+                        <div id="health-bar"></div>
+                    </div>
+                    <div id="health-text">100 / 100</div>
+                </div>
+                <div class="hud-top-right">
+                    <div id="score">Puntuación: 0</div>
+                    <div id="combo">Combo: 0</div>
+                </div>
+                <div class="hud-bottom-left">
+                    <div id="weapon-level">Arma Lvl 1</div>
+                    <div id="jump-cooldown">Salto Listo</div>
+                    <div id="dash-cooldown">» Shift · Ready</div>
+                </div>
+                <div class="hud-bottom-right">
+                <div id="round-info">Ronda 1 - 22s</div>
+                </div>
+                <div id="notifications" style="opacity: 0;"></div>
+                <div id="round-modifier" class="round-banner hidden"></div>
+                <div id="boss-hud" class="boss-hud hidden">
+                    <div id="boss-name">MINIBOSS</div>
+                    <div class="boss-bar-track"><div id="boss-bar"></div></div>
+                </div>
+                <div id="active-effects" class="active-effects"></div>
+                <div id="super-powers" class="super-powers"></div>
+                <div id="pickup-toast" class="pickup-toast hidden"></div>
+            </div>
+            
+            <div id="start-screen" class="screen">
+                <h1 class="game-logo">DEADBOX</h1>
+                <p class="controls-line" data-i18n="menu.controls">WASD Move · Mouse Aim · Space Jump · Shift Dash · Q Power · Esc Pause</p>
+                <p id="high-score-display" class="record-line">Best 0 · Round 1</p>
+                <div class="run-setup">
+                    <label><span data-i18n="setup.startingRound">Starting Round</span><select id="starting-round"></select></label>
+                    <label><span data-i18n="setup.difficulty">Difficulty</span><select id="difficulty-select"></select></label>
+                    <p id="difficulty-description" class="setup-description"></p>
+                    <div id="start-summary" class="start-summary"></div>
+                </div>
+                <div class="menu-stack">
+                    <button id="btn-start" data-i18n="menu.play">Play</button>
+                    <button id="btn-continue" class="hidden" data-i18n="menu.continue">Continue</button>
+                    <button id="btn-bestiary" data-i18n="menu.bestiary">Bestiary</button>
+                    <button id="btn-options" data-i18n="menu.options">Options</button>
+                </div>
+                <label class="language-inline"><span data-i18n="menu.language">Language</span><select id="language-main"><option value="en">English</option><option value="es">Español</option></select></label>
+            </div>
+
+            <div id="loadout-screen" class="screen hidden">
+                <h1 data-i18n="loadout.title">Starting Loadout</h1>
+                <div id="loadout-summary" class="loadout-summary"></div>
+                <div class="menu-stack compact">
+                    <button id="btn-loadout-start" data-i18n="loadout.start">Start</button>
+                    <button id="btn-loadout-reroll" data-i18n="loadout.reroll">Reroll Loadout</button>
+                    <button id="btn-loadout-back" class="secondary" data-i18n="common.back">Back</button>
+                </div>
+            </div>
+            
+            <div id="game-over-screen" class="screen hidden">
+                <h1 data-i18n="gameOver.title">DEADBOX · Game Over</h1>
+                <p id="final-stats">Ronda: 1 | Puntuación: 0</p>
+                <button id="btn-restart" data-i18n="gameOver.retry">Retry</button>
+            </div>
+
+            <!-- Pantalla de Mejoras -->
+            <div id="upgrade-screen" class="screen hidden">
+                <h1 data-i18n="upgrade.title">Round Clear</h1>
+                <p data-i18n="upgrade.prompt">Choose one upgrade</p>
+                <div id="upgrade-options" style="display: flex; gap: 20px; max-width: 800px; justify-content: center;">
+                    <!-- Las opciones se inyectarán via JS -->
+                </div>
+            </div>
+            
+            <!-- Pantalla de Pausa -->
+            <div id="pause-screen" class="screen hidden">
+                <h1 data-i18n="pause.title">DEADBOX · Paused</h1>
+                <div class="menu-stack compact">
+                    <button id="btn-resume" data-i18n="pause.resume">Resume</button>
+                    <button id="btn-pause-options" data-i18n="menu.options">Options</button>
+                    <button id="btn-quit" data-i18n="pause.menu">Main Menu</button>
+                </div>
+                <label class="language-inline"><span data-i18n="menu.language">Language</span><select id="language-pause"><option value="en">English</option><option value="es">Español</option></select></label>
+            </div>
+
+            <div id="bestiary-screen" class="screen hidden panel-screen">
+                <div class="panel-header"><h2 data-i18n="bestiary.title">Bestiary</h2><button id="btn-bestiary-back" class="small-button" data-i18n="common.back">Back</button></div>
+                <div class="bestiary-filters">
+                    <select id="bestiary-status"><option value="all" data-i18n="bestiary.all">All</option><option value="discovered" data-i18n="bestiary.discovered">Discovered</option><option value="undiscovered" data-i18n="bestiary.undiscovered">Undiscovered</option><option value="defeated" data-i18n="bestiary.mostDefeated">Most defeated</option></select>
+                    <select id="bestiary-category"></select>
+                </div>
+                <div id="bestiary-grid" class="bestiary-grid"></div>
+            </div>
+
+            <div id="options-screen" class="screen hidden panel-screen">
+                <div class="panel-header"><h2 data-i18n="options.title">Options</h2><button id="btn-options-back" class="small-button" data-i18n="common.back">Back</button></div>
+                <div class="options-grid">
+                    <label><span data-i18n="options.master">Master volume</span><input id="opt-master" type="range" min="0" max="1" step="0.05"></label>
+                    <label><span data-i18n="options.music">Music volume</span><input id="opt-music" type="range" min="0" max="1" step="0.05"></label>
+                    <label><span data-i18n="options.effects">Sound effects</span><input id="opt-effects" type="range" min="0" max="1" step="0.05"></label>
+                    <label><span data-i18n="options.shake">Screen shake</span><input id="opt-shake" type="checkbox"></label>
+                    <label><span data-i18n="options.damageNumbers">Damage numbers</span><input id="opt-damage-numbers" type="checkbox"></label>
+                    <label><span data-i18n="options.reducedEffects">Reduced effects</span><input id="opt-reduced-effects" type="checkbox"></label>
+                    <label><span data-i18n="options.language">Language</span><select id="language-options"><option value="en">English</option><option value="es">Español</option></select></label>
+                    <button id="btn-fullscreen" class="small-button" data-i18n="options.fullscreen">Fullscreen</button>
+                </div>
+            </div>
+            
+            <!-- Pantalla de Recuperación -->
+            <div id="recovery-screen" class="screen hidden">
+                <h1 data-i18n="recovery.title">Interrupted Run</h1>
+                <p data-i18n="recovery.body" style="margin-bottom: 20px; font-size: 1.2rem; color: #cbd5e1;">An interrupted run was found.</p>
+                <button id="btn-recover" data-i18n="recovery.continue" style="margin-bottom: 20px;">Continue Run</button>
+                <button id="btn-newgame" data-i18n="recovery.new">New Run</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Elemento de Cuenta Regresiva -->
+    <div id="countdown" class="hidden" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 8rem; font-weight: bold; color: white; text-shadow: 0 0 20px rgba(0,0,0,0.8); z-index: 1000; text-align: center;"></div>
+
+    <!-- Scripts secuenciales (sin type="module" para evitar problemas de CORS localmente) -->
+    <script src="js/pool.js"></script>
+    <script src="js/particle.js"></script>
+    <script src="js/projectile.js"></script>
+    <script src="js/input.js"></script>
+    <script src="js/i18n.js"></script>
+    <script src="js/content.js"></script>
+    <script src="js/difficulty.js"></script>
+    <script src="js/zombie.js"></script>
+    <script src="js/player.js"></script>
+    <script src="js/spawner.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
