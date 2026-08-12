@@ -17,6 +17,7 @@ let soundEnabled = true;
 let lastSoundAt = 0;
 
 const arena = {x:0,y:0,width:2000,height:1500,color:'#1e293b',wallColor:'#334155'};
+function arenaSizeForRound(r){const t=clamp((r-1)/7,0,1);return{width:Math.round(lerp(1000,2000,t)),height:Math.round(lerp(700,1500,t))};}
 const camera = {x:0,y:0};
 const uiHUD = document.getElementById('hud');
 const uiStartScreen = document.getElementById('start-screen');
@@ -268,14 +269,15 @@ function chooseModifiers(round){
 }
 function getCyclicDuration(r){return ROUND_DURATIONS[(r-1)%5];}
 function configureRound(r){
-    currentRound=r;roundDuration=getCyclicDuration(r);roundTimeLeft=roundDuration;roundModifiers=chooseModifiers(r);roundModifier=roundModifiers.map(roundName).join(' / ');roundEnded=false;enemiesQueued=0;
+    currentRound=r;const arenaSize=arenaSizeForRound(r);arena.width=arenaSize.width;arena.height=arenaSize.height;roundDuration=getCyclicDuration(r);roundTimeLeft=roundDuration;roundModifiers=chooseModifiers(r);roundModifier=roundModifiers.map(roundName).join(' / ');roundEnded=false;enemiesQueued=0;
     roundPhase='start';eventCount=0;lastWaveTriggered=false;damageTakenThisRound=0;roundKills=0;roundStartedAt=performance.now();roundEvents=buildRoundEvents(r);
     const stage=r<=5?1:r<=10?1.08:r<=15?1.16:r<=20?1.24:r<=30?1.34:1.42;
     const base=10+Math.min(34,r*.72);
     let countFactor=(hasModifier('Horda')||hasModifier('Enjambre')||hasModifier('Modo miniatura')) ? 1.3 : (hasModifier('Artillería')||hasModifier('Zona de guerra')||hasModifier('Modo gigante')) ? .65 : 1;
     if(r%10===0)countFactor*=.5;else if(r%5===0)countFactor*=.7;
-    enemiesBudget=Math.min(62,Math.round(base*stage*countFactor*difficultyProfile.quantity*(1+adaptivePressure*.05)));
-    spawnRate=Math.max(650,1450-Math.min(650,r*18))*(difficultyProfile.value<100?1.18:difficultyProfile.value>=275 ? .84 : 1);if(hasModifier('Horda')||hasModifier('Doble velocidad'))spawnRate*=.88;if(hasModifier('Artillería')||hasModifier('Zona de guerra'))spawnRate*=1.15;
+    const earlyBudgetBoost=r<=5?lerp(1.8,1,(r-1)/4):1,earlySpawnSpeed=r<=5?lerp(1.55,1,(r-1)/4):1;
+    enemiesBudget=Math.min(62,Math.round(base*stage*countFactor*earlyBudgetBoost*difficultyProfile.quantity*(1+adaptivePressure*.05)));
+    spawnRate=Math.max(500,(1450-Math.min(650,r*18))/earlySpawnSpeed)*(difficultyProfile.value<100?1.18:difficultyProfile.value>=275 ? .84 : 1);if(hasModifier('Horda')||hasModifier('Doble velocidad'))spawnRate*=.88;if(hasModifier('Artillería')||hasModifier('Zona de guerra'))spawnRate*=1.15;
     spawnTimer=700;currentRoundIdentity=buildRoundIdentity();enemyIdentityHistory.push(currentRoundIdentity);if(enemyIdentityHistory.length>8)enemyIdentityHistory.shift();
     document.body.classList.toggle('round-darkness',hasModifier('Oscuridad'));document.body.classList.toggle('round-fog',hasModifier('Niebla'));
     player.noJump=hasModifier('Sin salto');Spawner.preferredEdges=hasModifier('Dos frentes')?[Math.floor(Math.random()*2),2+Math.floor(Math.random()*2)]:null;
@@ -359,6 +361,7 @@ function drawObstacles(){
 function beginRun(startRound=1,preparedPlayer=null){
     Input.reset();document.activeElement?.blur?.();
     if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const beginSize=arenaSizeForRound(startRound);arena.width=beginSize.width;arena.height=beginSize.height;
     player=preparedPlayer||new Player(arena.width/2,arena.height/2);player.x=arena.width/2;player.y=arena.height/2;player.health=player.maxHealth;player.buffs={};player.powers={};player.storedPower=null;player.regen=null;player.orbs=0;player.dashCharges=player.maxDashCharges;player.dashRechargeTimer=0;resetEntities();score=0;combo=0;comboTimer=0;kills=0;bestCombo=0;autosaveTimer=0;adaptivePressure=0;roundsWithoutDamage=0;modifierHistory=[];enemyIdentityHistory=[];synergyHistory=[];obstacleHistory=[];stolenPower=null;Spawner.resetSession();resetEncounterRotation();
     runInfo={startRound,difficulty:selectedDifficulty,advanced:startRound>1,startedAt:Date.now()};
     uiStartScreen.classList.add('hidden');document.getElementById('loadout-screen').classList.add('hidden');uiRecoveryScreen.classList.add('hidden');uiGameOverScreen.classList.add('hidden');uiPauseScreen.classList.add('hidden');uiHUD.classList.remove('hidden');
@@ -378,7 +381,7 @@ window.addEventListener('earthquake',e=>{
 window.addEventListener('zombie_explosion_warning',e=>{if(gameState!=='PLAYING')return;const d=e.detail,delay=650*difficultyProfile.telegraph;createHazard('fire',d.x,d.y,{radius:d.radius,warning:650,duration:1800,damage:currentRound>=8?d.damage*.45:0});setTimeout(()=>{if(gameState!=='PLAYING')return;addRing(d.x,d.y,d.radius,'#ef4444');for(const z of zombies){if(z.active&&distance(z.x,z.y,d.x,d.y)<=d.radius){const died=z.takeDamage(d.damage);if(died)handleEnemyDeath(z);}}for(let i=0;i<14;i++)spawnParticle(d.x,d.y,'#f97316',8,4);},delay);});
 function addRing(x,y,maxRadius,color){if(earthquakeRings.length>=ENTITY_LIMITS.rings)earthquakeRings.shift();earthquakeRings.push({x,y,radius:0,maxRadius,opacity:1,color});}
 
-function updateCamera(){camera.x=clamp(player.x-canvas.width/2,0,Math.max(0,arena.width-canvas.width));camera.y=clamp(player.y-canvas.height/2,0,Math.max(0,arena.height-canvas.height));if(options.screenShake&&shakeTime>0){camera.x+=(Math.random()-.5)*shakeMagnitude;camera.y+=(Math.random()-.5)*shakeMagnitude;}}
+function updateCamera(){camera.x=arena.width<=canvas.width?(arena.width-canvas.width)/2:clamp(player.x-canvas.width/2,0,arena.width-canvas.width);camera.y=arena.height<=canvas.height?(arena.height-canvas.height)/2:clamp(player.y-canvas.height/2,0,arena.height-canvas.height);if(options.screenShake&&shakeTime>0){camera.x+=(Math.random()-.5)*shakeMagnitude;camera.y+=(Math.random()-.5)*shakeMagnitude;}}
 
 function updateRound(dt){
     roundTimeLeft-=dt/1000;spawnTimer-=dt;const progress=clamp(1-roundTimeLeft/roundDuration,0,1);
@@ -536,6 +539,7 @@ function markSessionActive(){try{const d=getSafeSave();if(d){d.sessionActive=tru
 function checkRecovery(){const d=getSafeSave(),button=document.getElementById('btn-continue');button.classList.toggle('hidden',!(d&&d.sessionActive));return d&&d.sessionActive;}
 function recoverGame(){
     const d=getSafeSave();if(!d){uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');return;}if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const recoverRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1),recoverSize=arenaSizeForRound(recoverRound);arena.width=recoverSize.width;arena.height=recoverSize.height;
     player=new Player(arena.width/2,arena.height/2);player.maxHealth=finite(d.maxHealth,100,20,10000);player.health=finite(d.health,player.maxHealth,1,player.maxHealth);player.weaponLevel=finite(d.weaponLevel,1,1,100);player.bonusDamage=finite(d.bonusDamage,0,0,10000);player.fireRate=finite(d.fireRate,300,65,1000);player.speed=finite(d.speed,4,1,15);player.jumpCooldown=finite(d.jumpCooldown,5000,600,10000);player.projectileSize=finite(d.projectileSize,5,2,30);player.damageReduction=finite(d.damageReduction,0,0,.5);player.shieldHits=finite(d.shieldHits,0,0,10);player.dashDistance=finite(d.dashDistance,140,120,280);player.dashSpeed=finite(d.dashSpeed,1,.8,1.7);player.dashCooldown=finite(d.dashCooldown,4000,800,5000);player.dashInvulnerability=finite(d.dashInvulnerability,140,100,450);player.maxDashCharges=finite(d.maxDashCharges,1,1,2);player.dashCharges=player.maxDashCharges;player.dashAvailable=true;player.shockDash=!!d.shockDash;player.trailBurn=!!d.trailBurn;
     setSelectedDifficulty(finite(d.difficulty,d.runInfo?.difficulty||100,1,500));runInfo=d.runInfo&&typeof d.runInfo==='object'?d.runInfo:{startRound:finite(d.startRound,1,1),difficulty:selectedDifficulty,advanced:finite(d.startRound,1,1)>1,startedAt:Date.now()};score=finite(d.score,0,0);kills=finite(d.kills,0,0);bestCombo=finite(d.bestCombo,0,0);adaptivePressure=finite(d.adaptivePressure,0,0,1);roundsWithoutDamage=finite(d.roundsWithoutDamage,0,0,20);combo=0;resetEntities();currentRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1);
     uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.add('hidden');uiHUD.classList.remove('hidden');startCountdown(()=>{configureRound(currentRound);gameState='PLAYING';lastTime=performance.now();saveProgress('recovered');});

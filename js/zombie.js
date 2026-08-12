@@ -13,7 +13,8 @@ class Zombie {
         this.x = x; this.y = y; this.active = true;
         this.size = this.baseSize;
         this.speed = this.baseSpeed * (1 + Math.min(.25, difficulty * .008));
-        this.maxHealth = this.baseHealth * (1 + Math.min(.8,difficulty * .025));
+        const earlyEase = difficulty <= 5 ? lerp(.5, 1, (difficulty - 1) / 4) : 1;
+        this.maxHealth = this.baseHealth * (1 + Math.min(.8,difficulty * .025)) * earlyEase;
         this.health = this.maxHealth;
         this.damage = this.baseDamage * (1 + Math.min(.8, difficulty * .035));
         this.color = this.baseColor;
