@@ -198,35 +198,45 @@ function spawnFood(x,y,type=null,source='normal'){
 function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
 window.addEventListener('resize',resize);resize();Input.init();
 
+// Los efectos suenan por encima del bajo de la música: si comparten banda grave, quedan enmascarados.
+const SFX={shoot:{from:760,to:300,dur:.07,wave:'square',level:.13,gap:45},hit:{from:340,to:120,dur:.12,wave:'sawtooth',level:.19,gap:30},earthquake:{from:190,to:55,dur:.24,wave:'triangle',level:.24,gap:80}};
+const lastSoundByType={};
 function playSound(type){
-    if(!soundEnabled||options.master<=0||options.effects<=0||!audioCtx||performance.now()-lastSoundAt<35||(typeof hasModifier==='function'&&hasModifier('Silencio')&&type==='shoot'))return;lastSoundAt=performance.now();
-    try{const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.connect(gain);gain.connect(audioCtx.destination);const now=audioCtx.currentTime;osc.type=type==='shoot'?'square':type==='hit'?'sawtooth':'sine';osc.frequency.setValueAtTime(type==='shoot'?380:type==='hit'?130:75,now);osc.frequency.exponentialRampToValueAtTime(type==='shoot'?110:45,now+.09);gain.gain.setValueAtTime(.055*options.master*options.effects,now);gain.gain.exponentialRampToValueAtTime(.005,now+.1);osc.start(now);osc.stop(now+.11);}catch(e){console.warn('Audio skipped',e);}
+    const spec=SFX[type]||SFX.hit;
+    if(!soundEnabled||options.master<=0||options.effects<=0||!audioCtx||(typeof hasModifier==='function'&&hasModifier('Silencio')&&type==='shoot'))return;
+    const now=performance.now();if(now-(lastSoundByType[type]||0)<spec.gap)return;lastSoundByType[type]=lastSoundAt=now;
+    try{
+        const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),at=audioCtx.currentTime;
+        osc.type=spec.wave;osc.frequency.setValueAtTime(spec.from,at);osc.frequency.exponentialRampToValueAtTime(spec.to,at+spec.dur);
+        gain.gain.setValueAtTime(spec.level*options.master*options.effects,at);gain.gain.exponentialRampToValueAtTime(.0005,at+spec.dur+.03);
+        osc.connect(gain);gain.connect(audioCtx.destination);osc.start(at);osc.stop(at+spec.dur+.05);
+    }catch(e){console.warn('Audio skipped',e);}
 }
 
 // Música procedural: una pieza escrita (progresión Am–F–C–G, melodía, bajo, pad y batería).
 // Cada zona transpone y retimbra el mismo tema, así el juego mantiene una identidad reconocible.
-const MUSIC_BPM=88;                                       // lento y sombrío
+const MUSIC_BPM=104;                                      // oscuro pero con paso vivo
 const MUSIC_ROOT=110;                                     // A2
 // i – VI – iv – V en La menor. El V mayor (con SOL#) da el color de menor armónica: tenso y misterioso.
 const MUSIC_PROGRESSION=[{root:0,triad:[0,3,7]},{root:-4,triad:[0,4,7]},{root:5,triad:[0,3,7]},{root:7,triad:[0,4,7]}];
 const MUSIC_MELODY=[                                      // semitonos sobre la tónica; null = silencio
-    12,null,null,null, 15,null,14,null,
-    12,null,null,null,  8,null,10,null,
-    17,null,null,null, 15,null,14,null,
-    11,null,null,null, 12,null,null,null,
-    19,null,17,null, 15,null,12,null,
-    20,null,19,null, 17,null,15,null,
-    17,null,15,null, 14,null,12,null,
-    11,null,12,null, 11,null,null,null
+    12,null,15,null, 19,null,17,null,
+    20,null,17,null, 15,null,12,null,
+    17,null,20,null, 17,null,15,null,
+    14,null,11,null, 12,null,null,null,
+    19,null,17,15, 12,null,15,null,
+    20,null,19,17, 15,null,17,null,
+    17,null,15,14, 12,null,14,null,
+    11,null,12,14, 11,null,null,null
 ];
 const MUSIC_ZONES={
-    containment:{transpose:0,wave:'triangle',tempo:1,cutoff:1100},
-    foundry:{transpose:-2,wave:'sawtooth',tempo:1.03,cutoff:950},
-    bloom:{transpose:3,wave:'triangle',tempo:1.02,cutoff:1250},
-    cryo:{transpose:5,wave:'sine',tempo:1.05,cutoff:1450},
-    void:{transpose:-4,wave:'triangle',tempo:1.08,cutoff:1000},
-    ember:{transpose:-5,wave:'sawtooth',tempo:1.12,cutoff:900},
-    null:{transpose:-7,wave:'triangle',tempo:1.15,cutoff:800}
+    containment:{transpose:0,wave:'triangle',tempo:1,cutoff:1500},
+    foundry:{transpose:-2,wave:'sawtooth',tempo:1.03,cutoff:1300},
+    bloom:{transpose:3,wave:'triangle',tempo:1.02,cutoff:1700},
+    cryo:{transpose:5,wave:'sine',tempo:1.05,cutoff:1950},
+    void:{transpose:-4,wave:'triangle',tempo:1.08,cutoff:1400},
+    ember:{transpose:-5,wave:'sawtooth',tempo:1.12,cutoff:1250},
+    null:{transpose:-7,wave:'triangle',tempo:1.15,cutoff:1100}
 };
 let musicTimer=null,musicNextTime=0,musicStep=0,musicGain=null,musicDelay=null,musicNoise=null;
 function musicVolume(){return soundEnabled?clamp(options.master*options.music,0,1):0;}
@@ -298,12 +308,12 @@ function playMusicStep(zone,step,at,stepSeconds){
         // Bajo sostenido en media nota, con subgrave una octava por debajo para dar peso.
         if(beat===0||beat===4){
             const bassRoot=pitch(chord.root)/2;
-            musicTone(bassRoot,at,stepSeconds*3.6,{wave:'sawtooth',level:.42,cutoff:340});
-            musicTone(bassRoot/2,at,stepSeconds*3.6,{wave:'sine',level:.3,cutoff:190});
+            musicTone(bassRoot,at,stepSeconds*3.6,{wave:'sawtooth',level:.24,cutoff:320});
+            musicTone(bassRoot/2,at,stepSeconds*3.6,{wave:'sine',level:.14,cutoff:180});
         }
         if(beat===0)for(const interval of chord.triad)musicTone(pitch(chord.root+interval),at,stepSeconds*7.4,{wave:'triangle',level:.06,cutoff:720});
         const note=MUSIC_MELODY[pos];
-        if(note!=null)musicTone(pitch(note),at,stepSeconds*(MUSIC_MELODY[(pos+1)%MUSIC_MELODY.length]==null?2.6:1.2),{wave:zone.wave,level:.15,cutoff:zone.cutoff,send:.24});
+        if(note!=null)musicTone(pitch(note),at,stepSeconds*(MUSIC_MELODY[(pos+1)%MUSIC_MELODY.length]==null?2.4:1.15),{wave:zone.wave,level:.26,cutoff:zone.cutoff,send:.2});
     }catch(e){}
 }
 

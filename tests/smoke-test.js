@@ -133,6 +133,15 @@ vm.runInThisContext(`
   resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
   update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
 
+  // Los efectos deben sonar y mantenerse fuera de la banda grave donde el bajo los enmascara.
+  soundEnabled=true;
+  for(const type of ['shoot','hit','earthquake']){
+    lastSoundByType[type]=performance.now()-10000; window.__audioVoices=0; playSound(type);
+    if(window.__audioVoices===0)throw new Error('playSound no emitió voz: '+type);
+  }
+  if(Object.values(SFX).some(s=>s.from<=150))throw new Error('Un efecto arranca dentro de la banda del bajo');
+  if(Object.values(SFX).some(s=>s.level<=.1))throw new Error('Un efecto quedaría por debajo de la música');
+
   startMusic(); if(!musicTimer)throw new Error('La música no arrancó');
   window.__audioVoices=0; scheduleMusic(); if(window.__audioVoices===0)throw new Error('El secuenciador no generó voces');
   if(MUSIC_MELODY.filter(n=>n!=null).some(n=>![0,2,3,5,7,8,10,11].includes(((n%12)+12)%12)))throw new Error('Melodía fuera de la escala menor');
