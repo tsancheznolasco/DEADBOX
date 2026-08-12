@@ -8,8 +8,13 @@ class Target {
   addEventListener(type, fn){ (this.listeners[type] ||= []).push(fn); }
   dispatchEvent(event){ for (const fn of this.listeners[event.type] || []) fn(event); }
 }
+// El style real del DOM expone setProperty/getPropertyValue además de las propiedades directas.
+function makeFakeStyle(){
+  const props={};
+  return { setProperty(name,value){ props[name]=String(value); }, getPropertyValue(name){ return props[name]??''; }, removeProperty(name){ delete props[name]; } };
+}
 class FakeElement extends Target {
-  constructor(id=''){ super(); this.id=id; this.style={}; this.children=[]; this.textContent=''; this.innerText=''; this._innerHTML=''; this.classList={add(){},remove(){},toggle(){},contains(){return false;}}; }
+  constructor(id=''){ super(); this.id=id; this.style=makeFakeStyle(); this.children=[]; this.textContent=''; this.innerText=''; this._innerHTML=''; this.classList={add(){},remove(){},toggle(){},contains(){return false;}}; }
   appendChild(child){ this.children.push(child); }
   set innerHTML(value){ this._innerHTML=value; this.children=[]; }
   get innerHTML(){ return this._innerHTML; }
@@ -29,7 +34,12 @@ elements.set('gameCanvas', canvas);
 global.Event = class { constructor(type){this.type=type;} };
 global.CustomEvent = class extends Event { constructor(type, options={}){super(type);this.detail=options.detail;} };
 global.window = new Target();
-window.innerWidth=1280; window.innerHeight=720; window.AudioContext=class{}; window.webkitAudioContext=window.AudioContext;
+window.innerWidth=1280; window.innerHeight=720;
+// AudioContext mínimo pero con la forma real: nodos, rampas y destino conectables.
+const fakeAudioParam=()=>({value:0,setValueAtTime(){return this;},linearRampToValueAtTime(){return this;},exponentialRampToValueAtTime(){return this;},setTargetAtTime(){return this;}});
+const fakeAudioNode=()=>({gain:fakeAudioParam(),frequency:fakeAudioParam(),type:'sine',connect(){},disconnect(){},start(){},stop(){}});
+window.AudioContext=class{ constructor(){ this.currentTime=0; this.destination=fakeAudioNode(); } createGain(){ return fakeAudioNode(); } createOscillator(){ return fakeAudioNode(); } resume(){} };
+window.webkitAudioContext=window.AudioContext;
 global.document = new Target();
 document.body = new FakeElement('body');
 document.documentElement = new FakeElement('html');
@@ -106,6 +116,7 @@ vm.runInThisContext(`
   resetEntities(); configureRound(45); const mini2=queueDirectSpawn('miniboss',220,220);if(mini2.bestiaryId===firstMini)throw new Error('Miniboss repetido consecutivamente');
   resetEntities(); configureRound(40); const boss=queueDirectSpawn('boss',300,300); if(!boss.displayName||boss.phase!==1)throw new Error('Boss sin variante');const firstBoss=boss.bestiaryId;
   resetEntities(); configureRound(50); const boss2=queueDirectSpawn('boss',300,300);if(boss2.bestiaryId===firstBoss)throw new Error('Boss repetido consecutivamente');
+  startMusic(); if(!musicTimer)throw new Error('La música no arrancó'); stopMusic(); if(musicTimer)throw new Error('La música no se detuvo');
 `);
 
 console.log('Smoke test completado: dash dirigido por cursor, cámara/escala, colisiones, mejoras, FPS y sistemas de DEADBOX válidos.');
