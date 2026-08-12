@@ -14,7 +14,7 @@ function makeFakeStyle(){
   return { setProperty(name,value){ props[name]=String(value); }, getPropertyValue(name){ return props[name]??''; }, removeProperty(name){ delete props[name]; } };
 }
 class FakeElement extends Target {
-  constructor(id=''){ super(); this.id=id; this.style=makeFakeStyle(); this.children=[]; this.textContent=''; this.innerText=''; this._innerHTML=''; this.classList={add(){},remove(){},toggle(){},contains(){return false;}}; }
+  constructor(id=''){ super(); this.id=id; this.style=makeFakeStyle(); this.dataset={}; this.children=[]; this.textContent=''; this.innerText=''; this._innerHTML=''; this.classList={add(){},remove(){},toggle(){},contains(){return false;}}; }
   appendChild(child){ this.children.push(child); }
   set innerHTML(value){ this._innerHTML=value; this.children=[]; }
   get innerHTML(){ return this._innerHTML; }

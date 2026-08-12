@@ -799,6 +799,48 @@ function drawWorkshopPreview(){
     }
     c.restore();
 }
+// Sustituye el desplegable nativo por uno propio del juego. El <select> original queda oculto y
+// sigue siendo la fuente de estado, así que setupRunSelectors, .value y los eventos change no cambian.
+function closeAllSelects(except){for(const el of document.querySelectorAll('.vs.open'))if(el!==except)el.classList.remove('open');}
+function enhanceSelect(select){
+    // Mejora progresiva: si al entorno le falta algo, se queda el <select> nativo, que sigue funcionando.
+    if(!select||!select.dataset||select.dataset.enhanced||!select.parentNode||typeof MutationObserver!=='function')return;
+    select.dataset.enhanced='1';
+    const wrap=document.createElement('div');wrap.className='vs';
+    select.parentNode.insertBefore(wrap,select);wrap.appendChild(select);
+    const value=document.createElement('button');value.type='button';value.className='vs-value';
+    const list=document.createElement('div');list.className='vs-list hidden';
+    wrap.appendChild(value);wrap.appendChild(list);
+    const close=()=>{wrap.classList.remove('open');list.classList.add('hidden');};
+    const render=()=>{
+        value.textContent=select.options[select.selectedIndex]?.textContent||'';
+        list.innerHTML='';
+        for(const option of select.options){
+            const item=document.createElement('button');item.type='button';
+            item.className=`vs-option${option.selected?' selected':''}${option.disabled?' disabled':''}`;
+            item.textContent=option.textContent;
+            item.addEventListener('click',event=>{
+                event.stopPropagation();
+                if(option.disabled)return;
+                select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));
+                close();value.blur();
+            });
+            list.appendChild(item);
+        }
+    };
+    value.addEventListener('click',event=>{
+        event.stopPropagation();
+        const open=wrap.classList.contains('open');
+        closeAllSelects();
+        if(open)close();else{wrap.classList.add('open');list.classList.remove('hidden');}
+    });
+    select.addEventListener('change',render);
+    new MutationObserver(render).observe(select,{childList:true,subtree:true,attributes:true,characterData:true});
+    render();
+}
+document.addEventListener('click',()=>closeAllSelects());
+window.addEventListener('keydown',event=>{if(event.key==='Escape')closeAllSelects();});
+
 function syncOptionsUI(){document.getElementById('opt-master').value=options.master;document.getElementById('opt-music').value=options.music;document.getElementById('opt-effects').value=options.effects;document.getElementById('opt-shake').checked=options.screenShake;document.getElementById('opt-damage-numbers').checked=options.damageNumbers;document.getElementById('opt-reduced-effects').checked=options.reducedEffects;}
 function openOptions(from='menu'){optionsReturn=from;if(from==='pause')uiPauseScreen.classList.add('hidden');else uiStartScreen.classList.add('hidden');uiOptionsScreen.classList.remove('hidden');syncOptionsUI();}
 function closeOptions(){uiOptionsScreen.classList.add('hidden');if(optionsReturn==='pause')uiPauseScreen.classList.remove('hidden');else uiStartScreen.classList.remove('hidden');}
@@ -840,4 +882,6 @@ bindOption('opt-master','master','input','effects');bindOption('opt-music','musi
 document.getElementById('btn-fullscreen').addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.();});
 for(const id of['language-main','language-pause','language-options'])document.getElementById(id).addEventListener('change',e=>setLanguage(e.target.value));
 window.addEventListener('language_changed',()=>{refreshMenuStats();setupRunSelectors();if(preparedLoadout)renderLoadoutSummary();if(!uiBestiaryScreen.classList.contains('hidden')){setupBestiaryFilters();renderBestiary();}});
-setLanguage(currentLanguage);setupRunSelectors();checkRecovery();requestAnimationFrame(gameLoop);
+setLanguage(currentLanguage);setupRunSelectors();checkRecovery();
+for(const id of['starting-round','difficulty-select','language-main','language-pause','language-options','bestiary-status','bestiary-category'])enhanceSelect(document.getElementById(id));
+requestAnimationFrame(gameLoop);
