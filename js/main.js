@@ -566,7 +566,14 @@ function initGame(){if(selectedStartRound>1)prepareAdvancedStart();else beginRun
 
 // En pausa la música se atenúa en vez de detenerse: Opciones se abre desde aquí y el deslizador
 // de música necesita algo que oír para poder ajustarse.
-window.addEventListener('pause_toggle',()=>{if(gameState==='PLAYING'){Input.pressed.clear();gameState='PAUSED';musicDuck=.35;uiPauseScreen.classList.remove('hidden');}else if(gameState==='PAUSED')resumeFromPause();});
+// silent = el jugador no está mirando: la música se corta del todo en vez de atenuarse.
+function pauseGame({silent=false}={}){
+    if(gameState!=='PLAYING')return false;
+    Input.reset();gameState='PAUSED';uiPauseScreen.classList.remove('hidden');
+    if(silent)stopMusic();else musicDuck=.35;
+    return true;
+}
+window.addEventListener('pause_toggle',()=>{if(gameState==='PLAYING')pauseGame();else if(gameState==='PAUSED')resumeFromPause();});
 function resumeFromPause(){Input.pressed.clear();gameState='PLAYING';uiPauseScreen.classList.add('hidden');lastTime=performance.now();musicDuck=1;startMusic();}
 document.getElementById('btn-resume').addEventListener('click',resumeFromPause);
 document.getElementById('btn-quit').addEventListener('click',()=>{saveProgress('quit');stopMusic();musicDuck=1;gameState='START';uiPauseScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();refreshMenuStats();checkRecovery();});
@@ -818,7 +825,18 @@ let pickupToastTimer=null;
 function showPickup(food){const el=document.getElementById('pickup-toast'),type=Object.keys(FOODS).find(key=>FOODS[key]===food),copy=foodText(type);el.textContent=`${food.icon}  ${copy[0]} · ${copy[1]}`;el.classList.remove('hidden');if(pickupToastTimer)clearTimeout(pickupToastTimer);pickupToastTimer=setTimeout(()=>el.classList.add('hidden'),2200);}
 window.addEventListener('notification',e=>{const d=e.detail;showNotification(typeof d==='string'?d:t(d.key,d.vars||{}));});
 window.addEventListener('beforeunload',()=>saveProgress('unexpected-close'));
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&gameState==='PLAYING')saveProgress('background');});
+// En un portal el juego vive en un iframe: al cambiar de pestaña seguía corriendo y sonando.
+// Se pausa y se calla, y al volver no se reanuda solo para no devolver al jugador a un golpe.
+function handleWindowHidden(){
+    if(gameState==='PLAYING'){saveProgress('background');pauseGame({silent:true});}
+    else stopMusic();
+}
+function handleWindowVisible(){
+    if(gameState==='UPGRADING'||gameState==='COUNTDOWN')startMusic();
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)handleWindowHidden();else handleWindowVisible();});
+window.addEventListener('blur',handleWindowHidden);
+window.addEventListener('focus',handleWindowVisible);
 
 function renderBestiary(){
     const status=document.getElementById('bestiary-status').value,category=document.getElementById('bestiary-category').value,grid=document.getElementById('bestiary-grid');let entries=Object.values(ENEMY_CATALOG);

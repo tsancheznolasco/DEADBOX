@@ -275,7 +275,13 @@ canvas {
     z-index: 10;
     padding: 3vh 4vw;
     overflow-y: auto;           /* pantallas bajas: mejor desplazar que recortar */
+    /* Centrar con flex recorta el principio del contenido cuando no cabe y lo deja inalcanzable.
+       "safe" vuelve a alinear al inicio en ese caso; los navegadores que no lo entiendan se
+       quedan con el center de la línea anterior. */
+    justify-content: safe center;
+    align-items: safe center;
 }
+.screen > * { flex-shrink: 0; }
 
 h1 {
     font-size: 4.4rem;
@@ -420,8 +426,8 @@ button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
 .start-grid {
     width: min(1040px, 92vw);
     display: grid;
-    grid-template-columns: 1fr minmax(300px, 380px);
-    gap: clamp(28px, 5vw, 68px);
+    grid-template-columns: 1fr minmax(250px, 380px);
+    gap: clamp(20px, 4vw, 68px);
     align-items: center;
 }
 
@@ -469,7 +475,9 @@ button.link:hover { background: none; color: var(--accent); border-bottom-color:
 .briefing-title { font-size: .66rem; text-transform: uppercase; letter-spacing: .28em; color: var(--text-muted); margin-bottom: 18px; }
 .briefing-title::before { content: '▚ '; color: var(--accent); }
 
-@media (max-width: 880px) {
+/* Sólo se apila cuando de verdad no caben dos columnas: en un iframe ancho pero bajo, apilar
+   obligaba a desplazarse aunque hubiera sitio de sobra a los lados. */
+@media (max-width: 700px) {
     .start-grid { grid-template-columns: 1fr; gap: 26px; }
     .start-brand, .start-brand .game-logo { text-align: center; }
     .start-brand .game-logo::after { left: 50%; transform: translateX(-50%); }
@@ -772,4 +780,53 @@ body.round-darkness canvas, body.round-fog canvas { filter: contrast(1.05); }
     h1 { font-size: 3rem; }
     #upgrade-options { flex-direction: column; gap: 10px !important; }
     .upgrade-card { width: min(80vw, 360px); padding: 12px; }
+}
+
+/* Los portales incrustan el juego en un iframe que puede ser mucho más bajo que una pantalla
+   de escritorio, así que todo se comprime para que quepa sin desplazamiento. */
+@media (max-height: 640px) {
+    .screen { padding: 2vh 3vw; }
+    .start-grid { gap: 18px 30px; }
+    .game-logo { font-size: clamp(1.7rem, 4.6vw, 2.6rem); letter-spacing: .16em; padding-bottom: 9px; margin-bottom: 2px; }
+    .game-logo::after { height: 5px; width: 150px; }
+    .controls-line { font-size: .66rem; margin: 8px 0 12px; line-height: 1.45; }
+    .start-records { gap: 22px; margin-bottom: 14px; }
+    .start-records dd { font-size: 1.05rem; }
+    .start-actions { margin-bottom: 12px; }
+    button.primary { padding: 11px 30px; font-size: .85rem; }
+    .start-links { padding-top: 10px; }
+    .start-briefing { padding: 14px 15px; }
+    .briefing-title { margin-bottom: 11px; }
+    .run-setup { gap: 8px; }
+    .setup-hint { margin-top: 8px; }
+    .setup-description { min-height: 0; margin-top: 6px; padding-top: 6px; }
+    .start-summary { margin-top: 9px; padding: 8px 11px; }
+    .language-inline { margin-top: 10px; padding-top: 10px; }
+
+    /* Pantalla de muerte */
+    #game-over-screen h1 { font-size: 1.05rem; }
+    .death-cause { font-size: .82rem; margin-bottom: 12px; }
+    .death-score-value { font-size: clamp(2.2rem, 7vw, 3.2rem); }
+    .death-chase { margin-bottom: 14px; font-size: .82rem; }
+    .death-stats { gap: 22px; padding: 10px 16px; margin-bottom: 16px; }
+    .death-stats dd { font-size: .95rem; }
+
+    /* Paneles con listas */
+    .panel-screen { padding: 3vh 4vw; }
+    .panel-header { padding-bottom: 9px; margin-bottom: 11px; }
+    .panel-header h2 { font-size: 1.15rem; }
+    .bestiary-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); max-height: none; }
+    .bestiary-entry { min-height: 0; }
+    .workshop-grid { max-height: 46vh; }
+    .workshop-preview { padding: 10px; }
+    .options-grid label { padding: 6px 0; }
+    .upgrade-card { padding: 13px 14px; width: 210px; }
+    .upgrade-card h3 { font-size: 1.05rem; margin-bottom: 5px; }
+    .upgrade-card p { font-size: .82rem; }
+}
+
+/* Incrustaciones estrechas y bajas a la vez: la vista previa del taller estorba más que ayuda. */
+@media (max-height: 560px) and (max-width: 900px) {
+    .workshop-body { grid-template-columns: 1fr; }
+    .workshop-preview { display: none; }
 }

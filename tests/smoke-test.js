@@ -133,6 +133,22 @@ vm.runInThisContext(`
   resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
   update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
 
+  // En un portal el juego va dentro de un iframe: al perder el foco debe pararse y callarse,
+  // y no reanudarse solo al volver para no devolver al jugador directo a un golpe.
+  initGame(); startMusic();
+  if(gameState!=='PLAYING')throw new Error('La partida no arrancó para la prueba de foco');
+  handleWindowHidden();
+  if(gameState!=='PAUSED')throw new Error('Perder el foco no pausó la partida');
+  if(musicTimer)throw new Error('La música siguió sonando con la pestaña oculta');
+  handleWindowVisible();
+  if(gameState!=='PAUSED')throw new Error('Al volver no debe reanudarse solo');
+  resumeFromPause();
+  if(gameState!=='PLAYING'||!musicTimer)throw new Error('Reanudar no restauró partida y música');
+  // Fuera de la partida tampoco debe quedar música de fondo.
+  gameState='UPGRADING'; startMusic(); handleWindowHidden();
+  if(musicTimer)throw new Error('La música siguió sonando fuera de la partida');
+  stopMusic(); gameState='START';
+
   // La vida enemiga tenía un tope que se alcanzaba hacia la ronda 32: a partir de ahí el juego
   // se derrumbaba porque el daño del jugador seguía subiendo. Debe crecer siempre.
   const hpAt=(type,round)=>{resetEntities();currentRound=round;const z=queueDirectSpawn(type,300,300);const hp=z.maxHealth;resetEntities();return hp;};
