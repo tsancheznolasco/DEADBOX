@@ -12,6 +12,12 @@ const ROUND_DURATIONS = [22, 27, 32, 37, 42];
 // Se declaran antes que loadOptions() porque se usan durante su primera llamada.
 const OPTIONS_VERSION = 2;
 const VOLUME_EXPONENT = 1.7;
+// Combo: multiplicador visible que sube con cada baja y cuya ventana se acorta al crecer, para que
+// mantener la racha sea una decisión y no un accidente.
+const COMBO_CAP = 25;
+const COMBO_STEP = 0.08;
+function comboMultiplier(){return 1+Math.min(combo,COMBO_CAP)*COMBO_STEP;}
+function comboWindow(){return Math.max(1500,3000-Math.min(combo,COMBO_CAP)*60);}
 
 let gameState = 'START';
 let lastTime = performance.now();
@@ -214,15 +220,16 @@ window.addEventListener('resize',resize);resize();Input.init();
 
 function ensureAudio(){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();audioCtx.resume?.();}catch(e){console.warn('Audio skipped',e);}return audioCtx;}
 // Los efectos suenan por encima del bajo de la música: si comparten banda grave, quedan enmascarados.
-const SFX={shoot:{from:760,to:300,dur:.07,wave:'square',level:.13,gap:45},hit:{from:340,to:120,dur:.12,wave:'sawtooth',level:.19,gap:30},earthquake:{from:190,to:55,dur:.24,wave:'triangle',level:.24,gap:80}};
+const SFX={shoot:{from:760,to:300,dur:.07,wave:'square',level:.13,gap:45},hit:{from:340,to:120,dur:.12,wave:'sawtooth',level:.19,gap:30},earthquake:{from:190,to:55,dur:.24,wave:'triangle',level:.24,gap:80},combo:{from:520,to:390,dur:.06,wave:'square',level:.11,gap:28}};
 const lastSoundByType={};
-function playSound(type){
+function playSound(type,pitch=1){
     const spec=SFX[type]||SFX.hit;
     if(!soundEnabled||options.master<=0||options.effects<=0||!audioCtx||(typeof hasModifier==='function'&&hasModifier('Silencio')&&type==='shoot'))return;
     const now=performance.now();if(now-(lastSoundByType[type]||0)<spec.gap)return;lastSoundByType[type]=lastSoundAt=now;
     try{
         const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),at=audioCtx.currentTime;
-        osc.type=spec.wave;osc.frequency.setValueAtTime(spec.from,at);osc.frequency.exponentialRampToValueAtTime(spec.to,at+spec.dur);
+        const bend=clamp(Number(pitch)||1,.5,3);
+        osc.type=spec.wave;osc.frequency.setValueAtTime(spec.from*bend,at);osc.frequency.exponentialRampToValueAtTime(spec.to*bend,at+spec.dur);
         gain.gain.setValueAtTime(spec.level*effectsVolume(),at);gain.gain.exponentialRampToValueAtTime(.0005,at+spec.dur+.03);
         osc.connect(gain);gain.connect(audioCtx.destination);osc.start(at);osc.stop(at+spec.dur+.05);
     }catch(e){console.warn('Audio skipped',e);}
@@ -340,7 +347,7 @@ function spawnParticle(x,y,color,speed=2,size=3,life=1){
     if(options.reducedEffects&&Math.random()<.55)return;if(particles.length>=ENTITY_LIMITS.particles)return;const p=particlePool.get();if(p)particles.push(p.init(x,y,color,speed,size,life));
 }
 function spawnProjectile(x,y,angle,speed,damage,size,color,pierce=0){
-    if(projectiles.length>=ENTITY_LIMITS.playerProjectiles)return null;const p=projectilePool.get();if(p){p.init(x,y,angle,speed,damage,size,color,'player',Math.max(pierce,player?.hasPower?.('piercingCore')?3:0));p.bounces=(player?.buffs?.bounce||player?.hasPower?.('ricochet'))?1:0;p.secondary=!!player?.buffs?.popcorn;p.chain=!!player?.hasPower?.('chainLightning');projectiles.push(p);return p;}return null;
+    if(projectiles.length>=ENTITY_LIMITS.playerProjectiles)return null;const p=projectilePool.get();if(p){p.init(x,y,angle,speed,damage,size,color,'player',Math.max(pierce,player?.hasPower?.('piercingCore')?3:0));p.bounces=Math.max(player?.perks?.ricochet||0,(player?.buffs?.bounce||player?.hasPower?.('ricochet'))?1:0);p.secondary=!!player?.buffs?.popcorn;p.chain=Math.max(player?.perks?.arc||0,player?.hasPower?.('chainLightning')?1:0);projectiles.push(p);return p;}return null;
 }
 function spawnEnemyProjectile(x,y,angle,speed,damage,size,color,effect=null){
     const limit=Math.min(ENTITY_LIMITS.enemyProjectiles,getEncounterLimits(currentRound).enemyProjectiles);if(enemyProjectiles.length>=limit)return null;const p=enemyProjectilePool.get();if(p){p.init(x,y,angle,speed*difficultyProfile.projectileSpeed,damage,size,color,'enemy',0);p.effect=effect;enemyProjectiles.push(p);return p;}return null;
@@ -580,7 +587,7 @@ function checkCollisions(){
     for(const p of projectiles){
         if(!p.active)continue;if(p.x<0||p.x>arena.width||p.y<0||p.y>arena.height){if(p.bounces>0){p.bounces--;if(p.x<0||p.x>arena.width)p.vx*=-1;if(p.y<0||p.y>arena.height)p.vy*=-1;p.x=clamp(p.x,2,arena.width-2);p.y=clamp(p.y,2,arena.height-2);}else p.active=false;continue;}
         for(const o of obstacles){if(!p.active||!o.active||!['crate','wall'].includes(o.type))continue;if(circleHitsObstacle(p.x,p.y,p.size,o)){if(p.bounces>0){p.bounces--;const nx=Math.abs(p.x-o.x)>o.radius*.75?Math.sign(p.x-o.x):0,ny=nx?0:Math.sign(p.y-o.y);if(nx)p.vx*=-1;if(ny)p.vy*=-1;p.x+=nx*5;p.y+=ny*5;}else p.active=false;o.health-=p.damage;if(o.type==='crate'&&o.health<=0&&Math.random()<.14)spawnFood(o.x,o.y,null,'elite');}}
-        for(const z of nearbyZombies(spatial,p.x,p.y)){if(!p.active||!z.active)continue;const dx=p.x-z.x,dy=p.y-z.y,reach=p.size+z.size/2;if(dx*dx+dy*dy<reach*reach){for(let i=0;i<4;i++)spawnParticle(p.x,p.y,z.color,3,3);const sourceAngle=Math.atan2(-p.vy,-p.vx);const died=z.takeDamage(p.damage,sourceAngle);if(options.damageNumbers&&damageNumbers.length<32)damageNumbers.push({x:z.x,y:z.y-z.size/2,value:Math.round(p.damage),life:650});if(p.chain){const targets=zombies.filter(other=>other.active&&other!==z&&distance(other.x,other.y,z.x,z.y)<170).sort((a,b)=>distance(a.x,a.y,z.x,z.y)-distance(b.x,b.y,z.x,z.y)).slice(0,2);for(const target of targets){addRing(target.x,target.y,24,'#60a5fa');const chained=target.takeDamage(p.damage*.38);if(chained)handleEnemyDeath(target);}p.chain=false;}if(p.secondary){const a=Math.atan2(p.vy,p.vx);for(const off of[-.48,.48]){const child=spawnProjectile(p.x,p.y,a+off,Math.hypot(p.vx,p.vy)*.8,p.damage*.28,Math.max(2,p.size*.55),'#fef3c7',0);if(child)child.secondary=false;}p.secondary=false;}if(p.pierce>0){p.pierce--;p.damage*=.82;}else p.active=false;if(died)handleEnemyDeath(z);}}
+        for(const z of nearbyZombies(spatial,p.x,p.y)){if(!p.active||!z.active)continue;const dx=p.x-z.x,dy=p.y-z.y,reach=p.size+z.size/2;if(dx*dx+dy*dy<reach*reach){for(let i=0;i<4;i++)spawnParticle(p.x,p.y,z.color,3,3);const sourceAngle=Math.atan2(-p.vy,-p.vx);const died=z.takeDamage(p.damage,sourceAngle);if(options.damageNumbers&&damageNumbers.length<32)damageNumbers.push({x:z.x,y:z.y-z.size/2,value:Math.round(p.damage),life:650});if(p.chain>0){const arc=p.chain,targets=zombies.filter(other=>other.active&&other!==z&&distance(other.x,other.y,z.x,z.y)<170+arc*30).sort((a,b)=>distance(a.x,a.y,z.x,z.y)-distance(b.x,b.y,z.x,z.y)).slice(0,1+arc);for(const target of targets){addRing(target.x,target.y,24,'#60a5fa');const chained=target.takeDamage(p.damage*(.30+.08*arc));if(chained)handleEnemyDeath(target);}p.chain=0;}if(p.secondary){const a=Math.atan2(p.vy,p.vx);for(const off of[-.48,.48]){const child=spawnProjectile(p.x,p.y,a+off,Math.hypot(p.vx,p.vy)*.8,p.damage*.28,Math.max(2,p.size*.55),'#fef3c7',0);if(child)child.secondary=false;}p.secondary=false;}if(p.pierce>0){p.pierce--;p.damage*=.82;}else p.active=false;if(died)handleEnemyDeath(z);}}
     }
     for(const p of enemyProjectiles){if(!p.active)continue;if(p.x<0||p.x>arena.width||p.y<0||p.y>arena.height){p.active=false;continue;}if(distance(p.x,p.y,player.x,player.y)<p.size+playerRadius()){p.active=false;if(player.orbs>0){player.orbs--;continue;}if(p.effect==='freeze')player.addBuff('frozen',3500,.68,'FR','Frozen');if(player.takeDamage(p.damage)){playSound('hit');shakeTime=140;shakeMagnitude=9;}}}
     for(const z of zombies){if(!z.active)continue;const d=distance(player.x,player.y,z.x,z.y);if(!player.hasPower('ghost')&&d<playerRadius()+z.size/2&&z.attackCooldown<=0){if(player.orbs>0&&!z.isBoss){player.orbs--;const died=z.takeDamage((player.baseDamage+player.bonusDamage)*1.5);if(died)handleEnemyDeath(z);z.attackCooldown=700;continue;}if(player.takeDamage(z.damage)){playSound('hit');shakeTime=150;shakeMagnitude=12;const safe=Math.max(1,d);movePlayerByAxes((player.x-z.x)/safe*14,(player.y-z.y)/safe*14);}z.attackCooldown=650;}}
@@ -589,7 +596,9 @@ function checkCollisions(){
     projectiles=projectiles.filter(p=>p.active);enemyProjectiles=enemyProjectiles.filter(p=>p.active);zombies=zombies.filter(z=>z.active);foods=foods.filter(f=>f.active);superPickups=superPickups.filter(p=>p.active);
 }
 function handleEnemyDeath(z){
-    if(z.deadHandled)return;z.deadHandled=true;registerDefeat(z);kills++;roundKills++;player.kills=kills;combo++;bestCombo=Math.max(bestCombo,combo);player.bestCombo=bestCombo;comboTimer=3000;score+=(z.scoreValue+combo*2)*(hasModifier('Sin curación')?1.2:1);
+    if(z.deadHandled)return;z.deadHandled=true;registerDefeat(z);kills++;roundKills++;player.kills=kills;combo++;bestCombo=Math.max(bestCombo,combo);player.bestCombo=bestCombo;comboTimer=comboWindow();
+    score+=(z.scoreValue+combo)*comboMultiplier()*(hasModifier('Sin curación')?1.2:1);
+    playSound('combo',1+Math.min(combo,COMBO_CAP)*.045);
     if(['normal','fast'].includes(z.type)){recentDeadBasics.push({type:z.type});if(recentDeadBasics.length>8)recentDeadBasics.shift();}for(const collector of zombies)if(collector.active&&['harvester','undertaker'].includes(collector.type))collector.energy++;
     try{z.onDeath();}catch(e){console.warn('Entity cleanup skipped',e);}
     if(z.isElite){if(z.eliteAbility==='explosion')window.dispatchEvent(new CustomEvent('zombie_explosion_warning',{detail:{x:z.x,y:z.y,radius:90,damage:16}}));if(z.eliteAbility==='hazard')createHazard('poison',z.x,z.y,{radius:58,warning:400,duration:3600,damage:5});if(z.eliteAbility==='mini')queueDirectSpawn('mini',z.x,z.y);}
@@ -606,7 +615,14 @@ function updateHUD(time){
     const hp=clamp(player.health/player.maxHealth*100,0,100);healthBar.style.width=`${hp}%`;healthText.textContent=`${Math.ceil(player.health)} / ${player.maxHealth}`;scoreText.textContent=t('hud.score',{score:Math.floor(score)});
     healthBarContainer.classList.toggle('low-health',hp<=30);
     document.getElementById('run-scrap').textContent=t('hud.runScrap',{amount:runScrapSoFar()});
-    const comboEl=document.getElementById('combo');comboEl.style.opacity=combo>1?1:0;comboEl.textContent=t('hud.combo',{combo});
+    const comboWrap=document.getElementById('combo-wrap'),comboEl=document.getElementById('combo'),comboBar=document.getElementById('combo-bar');
+    const comboActive=combo>1&&comboTimer>0;
+    comboWrap.classList.toggle('hidden',!comboActive);
+    if(comboActive){
+        comboEl.textContent=t('hud.combo',{combo:comboMultiplier().toFixed(1),kills:combo});
+        comboBar.style.width=`${clamp(comboTimer/comboWindow()*100,0,100)}%`;
+        comboWrap.classList.toggle('hot',combo>=12);
+    }
     document.getElementById('round-info').textContent=gameState==='UPGRADING'?t('hud.safePause'):gameState==='COUNTDOWN'?t('hud.preparing'):t('hud.round',{round:currentRound,time:Math.max(0,Math.ceil(roundTimeLeft)),name:roundModifier});
     if(roundTimerBar){const timerPct=gameState==='PLAYING'&&roundDuration>0?clamp(roundTimeLeft/roundDuration*100,0,100):100;roundTimerBar.style.width=`${timerPct}%`;roundTimerBar.classList.toggle('low',timerPct<=25);}
     document.getElementById('weapon-level').textContent=t('hud.weapon',{level:player.weaponLevel});
@@ -669,9 +685,18 @@ const upgradePool = [
     {key:'dashShield',apply:()=>player.dashInvulnerability=Math.min(450,player.dashInvulnerability+45)},
     {key:'shockDash',apply:()=>player.shockDash=true},
     {key:'trailBurn',apply:()=>player.trailBurn=true},
-    {key:'doubleDash',apply:()=>{player.maxDashCharges=2;player.dashCharges=2}}
+    {key:'doubleDash',apply:()=>{player.maxDashCharges=2;player.dashCharges=2}},
+    // Ramas de construcción: cambian cómo se dispara, no sólo cuánto. Se acumulan hasta PERK_MAX.
+    {key:'scatter',perk:'scatter',apply:()=>player.perks.scatter++},
+    {key:'lance',perk:'lance',apply:()=>player.perks.lance++},
+    {key:'ricochet',perk:'ricochet',apply:()=>player.perks.ricochet++},
+    {key:'arc',perk:'arc',apply:()=>player.perks.arc++},
+    {key:'siege',perk:'siege',apply:()=>{player.perks.siege++;player.bonusDamage+=14;player.fireRate=Math.min(900,player.fireRate*1.2);player.projectileSize+=2;}}
 ];
-function upgradeAvailable(upgrade,simulation=false){if(simulation&&['heal','shield'].includes(upgrade.key))return false;if(upgrade.key==='speed')return player.speed<7;if(upgrade.key==='fireRate')return player.fireRate>90;if(upgrade.key==='agility')return player.jumpCooldown>1300;if(upgrade.key==='armor')return player.damageReduction<.4;if(upgrade.key==='dashDistance')return player.dashDistance<250;if(upgrade.key==='dashSpeed')return player.dashSpeed<1.5;if(upgrade.key==='dashRecovery')return player.dashCooldown>1900;if(upgrade.key==='dashShield')return player.dashInvulnerability<430;if(upgrade.key==='shockDash')return !player.shockDash;if(upgrade.key==='trailBurn')return !player.trailBurn;if(upgrade.key==='doubleDash')return player.maxDashCharges<2;return true;}
+const PERK_MAX=3;
+const PERK_NUMERALS=['','I','II','III'];
+function perkLevel(key){return player?.perks?.[key]||0;}
+function upgradeAvailable(upgrade,simulation=false){if(simulation&&['heal','shield'].includes(upgrade.key))return false;if(upgrade.perk)return perkLevel(upgrade.perk)<PERK_MAX;if(upgrade.key==='speed')return player.speed<7;if(upgrade.key==='fireRate')return player.fireRate>90;if(upgrade.key==='agility')return player.jumpCooldown>1300;if(upgrade.key==='armor')return player.damageReduction<.4;if(upgrade.key==='dashDistance')return player.dashDistance<250;if(upgrade.key==='dashSpeed')return player.dashSpeed<1.5;if(upgrade.key==='dashRecovery')return player.dashCooldown>1900;if(upgrade.key==='dashShield')return player.dashInvulnerability<430;if(upgrade.key==='shockDash')return !player.shockDash;if(upgrade.key==='trailBurn')return !player.trailBurn;if(upgrade.key==='doubleDash')return player.maxDashCharges<2;return true;}
 function loadoutSnapshot(startRound){return{startRound,maxHealth:player.maxHealth,speed:player.speed,bonusDamage:player.bonusDamage,fireRate:player.fireRate,jumpCooldown:player.jumpCooldown,damageReduction:player.damageReduction,weaponLevel:player.weaponLevel,dashDistance:player.dashDistance,dashCooldown:player.dashCooldown,dashCharges:player.maxDashCharges,shockDash:player.shockDash,trailBurn:player.trailBurn};}
 function generateAdvancedLoadout(startRound){
     player=new Player(arena.width/2,arena.height/2);for(let round=1;round<startRound;round++){const available=upgradePool.filter(u=>upgradeAvailable(u,true)).sort(()=>Math.random()-.5),choices=available.slice(0,3),chosen=choices[Math.floor(Math.random()*choices.length)];if(chosen)chosen.apply();if(round%2===0)player.levelUpWeapon(true);}player.health=player.maxHealth;player.shieldHits=0;player.buffs={};player.regen=null;preparedLoadout=loadoutSnapshot(startRound);gameMeta.lastLoadout=preparedLoadout;saveMeta();return player;
@@ -683,8 +708,17 @@ function startPreparedLoadout(){if(!preparedLoadout)return;beginRun(selectedStar
 function showUpgrades(){
     uiUpgradeScreen.classList.remove('hidden');uiUpgradeOptions.innerHTML='';
     if(currentRound%2===0)player.levelUpWeapon();
-    const choices=upgradePool.filter(u=>upgradeAvailable(u)).sort(()=>Math.random()-.5).slice(0,3);
-    for(const choice of choices){const copy=t(`upgrades.${choice.key}`);const div=document.createElement('div');div.className='upgrade-card';div.innerHTML=`<h3>${copy[0]}</h3><p>${copy[1]}</p>`;div.onclick=()=>{if(gameState!=='UPGRADING')return;choice.apply();showNotification(t('upgrade.selected'));saveProgress('upgrade');uiUpgradeScreen.classList.add('hidden');startCountdown(()=>{resetEntities();configureRound(currentRound+1);gameState='PLAYING';lastTime=performance.now();saveProgress('next-round');});};uiUpgradeOptions.appendChild(div);}
+    // Siempre se ofrece una rama de construcción junto a mejoras de estadísticas: sin esto todas
+    // las partidas acaban siendo la misma caja algo más fuerte.
+    const available=upgradePool.filter(u=>upgradeAvailable(u));
+    const perks=available.filter(u=>u.perk).sort(()=>Math.random()-.5);
+    const stats=available.filter(u=>!u.perk).sort(()=>Math.random()-.5);
+    const choices=[];
+    if(perks.length)choices.push(perks[0]);
+    for(const stat of stats){if(choices.length>=3)break;choices.push(stat);}
+    for(const perk of perks.slice(1)){if(choices.length>=3)break;choices.push(perk);}
+    choices.sort(()=>Math.random()-.5);
+    for(const choice of choices){const copy=t(`upgrades.${choice.key}`);const level=choice.perk?perkLevel(choice.perk)+1:0;const div=document.createElement('div');div.className=`upgrade-card${choice.perk?' perk-card':''}`;div.innerHTML=`<h3>${copy[0]}${level?` <span class="perk-level">${PERK_NUMERALS[level]}</span>`:''}</h3><p>${copy[1]}</p>`;div.onclick=()=>{if(gameState!=='UPGRADING')return;choice.apply();showNotification(t('upgrade.selected'));saveProgress('upgrade');uiUpgradeScreen.classList.add('hidden');startCountdown(()=>{resetEntities();configureRound(currentRound+1);gameState='PLAYING';lastTime=performance.now();saveProgress('next-round');});};uiUpgradeOptions.appendChild(div);}
 }
 function startCountdown(callback){
     Input.reset();gameState='COUNTDOWN';const el=document.getElementById('countdown');el.classList.remove('hidden');let count=3;el.textContent='3';
@@ -699,7 +733,7 @@ function updateRecords(force=false){
     if(force||JSON.stringify(records)!==before){localStorage.setItem(RECORD_KEY,JSON.stringify(records));localStorage.setItem('deadboxHighScore',String(records.highScore));localStorage.setItem('deadboxHighScoreRound',String(records.highRound));refreshMenuStats();}
 }
 function saveProgress(reason='auto'){
-    if(!player)return;updateRecords(false);const data={version:3,reason,savedAt:Date.now(),sessionActive:gameState!=='GAME_OVER',lastCompletedRound:roundEnded?currentRound:Math.max(0,currentRound-1),round:currentRound,score,kills,bestCombo,health:player.health,maxHealth:player.maxHealth,weaponLevel:player.weaponLevel,bonusDamage:player.bonusDamage,fireRate:player.fireRate,speed:player.speed,jumpCooldown:player.jumpCooldown,projectileSize:player.projectileSize,damageReduction:player.damageReduction,shieldHits:player.shieldHits,dashDistance:player.dashDistance,dashSpeed:player.dashSpeed,dashCooldown:player.dashCooldown,dashInvulnerability:player.dashInvulnerability,maxDashCharges:player.maxDashCharges,shockDash:player.shockDash,trailBurn:player.trailBurn,adaptivePressure,roundsWithoutDamage,records,runInfo,difficulty:selectedDifficulty,startRound:runInfo.startRound};
+    if(!player)return;updateRecords(false);const data={version:3,reason,savedAt:Date.now(),sessionActive:gameState!=='GAME_OVER',lastCompletedRound:roundEnded?currentRound:Math.max(0,currentRound-1),round:currentRound,score,kills,bestCombo,health:player.health,maxHealth:player.maxHealth,weaponLevel:player.weaponLevel,bonusDamage:player.bonusDamage,fireRate:player.fireRate,speed:player.speed,jumpCooldown:player.jumpCooldown,projectileSize:player.projectileSize,damageReduction:player.damageReduction,shieldHits:player.shieldHits,dashDistance:player.dashDistance,dashSpeed:player.dashSpeed,dashCooldown:player.dashCooldown,dashInvulnerability:player.dashInvulnerability,maxDashCharges:player.maxDashCharges,shockDash:player.shockDash,trailBurn:player.trailBurn,perks:{...player.perks},adaptivePressure,roundsWithoutDamage,records,runInfo,difficulty:selectedDifficulty,startRound:runInfo.startRound};
     try{const previous=localStorage.getItem(SAVE_KEY);if(previous){const parsed=JSON.parse(previous);if(parsed&&[2,3].includes(parsed.version))localStorage.setItem(BACKUP_KEY,previous);}localStorage.setItem(SAVE_KEY,JSON.stringify(data));}catch(e){console.warn('Guardado omitido',e);}
 }
 function validSave(d){return d&&[2,3].includes(d.version)&&Number.isFinite(Number(d.savedAt))&&Number.isFinite(Number(d.round))&&Number(d.round)>=1;}
@@ -710,6 +744,7 @@ function recoverGame(){
     const d=getSafeSave();if(!d){uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');return;}ensureAudio();
     const recoverRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1),recoverSize=arenaSizeForRound(recoverRound);arena.width=recoverSize.width;arena.height=recoverSize.height;applyArenaTheme(recoverRound);lastAnnouncedZone=null;
     player=new Player(arena.width/2,arena.height/2);player.maxHealth=finite(d.maxHealth,100,20,10000);player.health=finite(d.health,player.maxHealth,1,player.maxHealth);player.weaponLevel=finite(d.weaponLevel,1,1,100);player.bonusDamage=finite(d.bonusDamage,0,0,10000);player.fireRate=finite(d.fireRate,300,65,1000);player.speed=finite(d.speed,4,1,15);player.jumpCooldown=finite(d.jumpCooldown,5000,600,10000);player.projectileSize=finite(d.projectileSize,5,2,30);player.damageReduction=finite(d.damageReduction,0,0,.5);player.shieldHits=finite(d.shieldHits,0,0,10);player.dashDistance=finite(d.dashDistance,140,120,280);player.dashSpeed=finite(d.dashSpeed,1,.8,1.7);player.dashCooldown=finite(d.dashCooldown,4000,800,5000);player.dashInvulnerability=finite(d.dashInvulnerability,140,100,450);player.maxDashCharges=finite(d.maxDashCharges,1,1,2);player.dashCharges=player.maxDashCharges;player.dashAvailable=true;player.shockDash=!!d.shockDash;player.trailBurn=!!d.trailBurn;
+    for(const key of Object.keys(player.perks))player.perks[key]=finite(d.perks?.[key],0,0,PERK_MAX);
     setSelectedDifficulty(finite(d.difficulty,d.runInfo?.difficulty||100,1,500));runInfo=d.runInfo&&typeof d.runInfo==='object'?d.runInfo:{startRound:finite(d.startRound,1,1),difficulty:selectedDifficulty,advanced:finite(d.startRound,1,1)>1,startedAt:Date.now()};score=finite(d.score,0,0);kills=finite(d.kills,0,0);bestCombo=finite(d.bestCombo,0,0);adaptivePressure=finite(d.adaptivePressure,0,0,1);roundsWithoutDamage=finite(d.roundsWithoutDamage,0,0,20);combo=0;resetEntities();currentRound=Math.max(1,finite(d.lastCompletedRound,0,0)+1);
     uiRecoveryScreen.classList.add('hidden');uiStartScreen.classList.add('hidden');uiHUD.classList.remove('hidden');startCountdown(()=>{configureRound(currentRound);gameState='PLAYING';lastTime=performance.now();saveProgress('recovered');startMusic();});
 }

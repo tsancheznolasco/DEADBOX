@@ -212,7 +212,15 @@ canvas {
 #health-text, #score, #combo, #weapon-level, #round-info {
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
-#score, #combo, #weapon-level { font-size: 1.2rem; font-weight: 700; }
+#score, #weapon-level { font-size: 1.2rem; font-weight: 700; }
+
+/* Combo: multiplicador grande y barra que se vacía, para que la racha se vea y se sienta perder. */
+.combo-wrap { margin-top: 6px; display: grid; gap: 4px; justify-items: end; }
+#combo { font-size: 1.5rem; font-weight: 900; color: var(--signal); letter-spacing: .02em; font-variant-numeric: tabular-nums; line-height: 1; }
+.combo-wrap.hot #combo { color: var(--brass); text-shadow: 0 0 16px rgba(182,151,95,.5); }
+.combo-track { width: 118px; height: 4px; overflow: hidden; background: rgba(255,255,255,.12); }
+#combo-bar { width: 100%; height: 100%; background: var(--signal); transition: width .1s linear; }
+.combo-wrap.hot #combo-bar { background: var(--brass); }
 
 /* Jump / dash cooldowns as compact fill bars */
 .cooldown-row { display: flex; align-items: center; gap: 9px; margin-top: 8px; }
@@ -347,6 +355,12 @@ button:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
     box-shadow: none;
     background: var(--panel-raised);
 }
+
+/* Las ramas de construcción se distinguen de las mejoras de estadística de un vistazo. */
+.upgrade-card.perk-card { border-top-color: var(--signal); }
+.upgrade-card.perk-card:hover { border-top-color: var(--signal); }
+.upgrade-card.perk-card h3 { color: var(--signal); }
+.perk-level { font-size: .8em; opacity: .75; letter-spacing: .1em; }
 
 .upgrade-card h3 {
     color: var(--accent);

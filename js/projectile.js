@@ -11,6 +11,7 @@ class Projectile {
         this.owner = owner;
         this.pierce = pierce;
         this.bounces = 0;
+        this.chain = 0;                 // se reinicia aquí porque los proyectiles vienen de un pool
         this.effect = null;
         this.secondary = false;
         this.life = owner === 'enemy' ? 5000 : 3000;

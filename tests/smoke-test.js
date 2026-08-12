@@ -133,6 +133,45 @@ vm.runInThisContext(`
   resetEntities(); configureRound(1); gameState='PLAYING'; roundEnded=false; roundTimeLeft=10; enemiesBudget=0; enemiesQueued=0;
   update(16,performance.now()); if(roundEnded)throw new Error('Una ronda sin presupuesto no debe contar como despejada');
 
+  // Ramas de construcción: cada elección debe cambiar cómo se dispara, no sólo las estadísticas.
+  resetEntities(); player=new Player(500,500); gameState='PLAYING'; currentRound=1;
+  const perkUpgrades=upgradePool.filter(u=>u.perk);
+  if(perkUpgrades.length<4)throw new Error('Faltan ramas de construcción');
+  for(const upgrade of perkUpgrades){
+    for(let i=0;i<PERK_MAX;i++){
+      if(!upgradeAvailable(upgrade))throw new Error('La rama se agotó antes de tiempo: '+upgrade.key);
+      upgrade.apply();
+    }
+    if(upgradeAvailable(upgrade))throw new Error('La rama superó su nivel máximo: '+upgrade.key);
+    if(player.perks[upgrade.perk]!==PERK_MAX)throw new Error('Nivel de rama incorrecto: '+upgrade.key);
+  }
+  // Dispersión: más proyectiles por disparo; Lanza y Rebote llegan al proyectil.
+  player.perks={scatter:0,lance:0,ricochet:0,arc:0,siege:0}; player.fireRate=0; player.weaponLevel=1;
+  projectiles.length=0; player.shoot(projectiles,0);
+  const plainShots=projectiles.length;
+  player.perks.scatter=2; projectiles.length=0; player.shoot(projectiles,0);
+  if(projectiles.length!==plainShots+2)throw new Error('Dispersión no añadió proyectiles');
+  player.perks={scatter:0,lance:2,ricochet:3,arc:2,siege:0};
+  projectiles.length=0; player.shoot(projectiles,0);
+  const shot=projectiles[0];
+  if(shot.pierce!==2)throw new Error('Lanza no aplicó perforación');
+  if(shot.bounces!==3)throw new Error('Rebote no aplicó rebotes');
+  if(shot.chain!==2)throw new Error('Arco no aplicó saltos');
+  // Un proyectil reciclado del pool no debe conservar el encadenado del anterior.
+  player.perks={scatter:0,lance:0,ricochet:0,arc:0,siege:0};
+  projectiles.length=0; player.shoot(projectiles,0);
+  if(projectiles[0].chain!==0)throw new Error('El proyectil reciclado conservó el encadenado');
+
+  // Combo: multiplicador creciente con tope y ventana que se acorta.
+  combo=0; if(comboMultiplier()!==1)throw new Error('El combo debería empezar en ×1');
+  combo=10; const midMultiplier=comboMultiplier(), midWindow=comboWindow();
+  if(midMultiplier<=1)throw new Error('El combo no aumenta el multiplicador');
+  combo=COMBO_CAP*4;
+  if(comboMultiplier()!==1+COMBO_CAP*COMBO_STEP)throw new Error('El multiplicador no respeta su tope');
+  if(comboWindow()>=midWindow)throw new Error('La ventana de combo no se acorta al subir');
+  if(comboWindow()<1000)throw new Error('La ventana de combo quedó demasiado corta');
+  combo=0;
+
   // Aspectos: catálogo coherente, compra/equipamiento correctos y sin efecto sobre el juego.
   for(const slot of COSMETIC_SLOTS){
     const list=COSMETICS[slot];

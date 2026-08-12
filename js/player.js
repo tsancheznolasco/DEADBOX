@@ -44,6 +44,8 @@ class Player {
         this.bestCombo = 0;
         this.orbs = 0;
         this.noJump = false;
+        // Ramas de construcción permanentes elegidas entre rondas. 0 = no adquirida.
+        this.perks = { scatter: 0, lance: 0, ricochet: 0, arc: 0, siege: 0 };
         // Dash permanente de DEADBOX. Las mejoras modifican estos valores, no el movimiento base.
         this.dashCooldown = 4000;
         this.dashDistance = 140;
@@ -265,22 +267,35 @@ class Player {
         const startX = this.x + barrelOffsetX;
         const startY = this.y + barrelOffsetY;
         
-        if (this.weaponLevel < 4) {
+        // Perforación permanente de la rama Lanza, sin perder la temporal de la comida.
+        const scatter = this.perks?.scatter || 0;
+        const pierce = Math.max(this.perks?.lance || 0, this.buffs.pierce ? 1 : 0);
+
+        if (scatter > 0) {
+            // Abanico: cada nivel añade un proyectil y cada extra reduce algo el daño por disparo.
+            const baseCount = this.weaponLevel < 4 ? 1 : this.weaponLevel < 6 ? 2 : 3;
+            const total = baseCount + scatter;
+            const scatterDamage = pDamage * Math.pow(0.88, scatter);
+            for (let i = 0; i < total; i++) {
+                const offset = (i - (total - 1) / 2) * 0.15;
+                spawnProjectile(startX, startY, angle + offset, pSpeed, scatterDamage, pSize, color, pierce);
+            }
+        } else if (this.weaponLevel < 4) {
             // Un proyectil
-            spawnProjectile(startX, startY, angle, pSpeed, pDamage, pSize, color, this.buffs.pierce ? 1 : 0);
+            spawnProjectile(startX, startY, angle, pSpeed, pDamage, pSize, color, pierce);
         } else if (this.weaponLevel < 6) {
             // Dos proyectiles (paralelos)
             const spread = 5; // Pixeles de separación
             const offsetX = Math.cos(angle + Math.PI/2) * spread;
             const offsetY = Math.sin(angle + Math.PI/2) * spread;
-            spawnProjectile(startX + offsetX, startY + offsetY, angle, pSpeed, pDamage, pSize, color, this.buffs.pierce ? 1 : 0);
-            spawnProjectile(startX - offsetX, startY - offsetY, angle, pSpeed, pDamage, pSize, color, this.buffs.pierce ? 1 : 0);
+            spawnProjectile(startX + offsetX, startY + offsetY, angle, pSpeed, pDamage, pSize, color, pierce);
+            spawnProjectile(startX - offsetX, startY - offsetY, angle, pSpeed, pDamage, pSize, color, pierce);
         } else {
             // Tres proyectiles (abanico)
             const spreadAngle = 0.15; // Radianes
-            spawnProjectile(startX, startY, angle, pSpeed, pDamage, pSize, color, this.buffs.pierce ? 1 : 0);
-            spawnProjectile(startX, startY, angle - spreadAngle, pSpeed, pDamage, pSize, color, this.buffs.pierce ? 1 : 0);
-            spawnProjectile(startX, startY, angle + spreadAngle, pSpeed, pDamage, pSize, color, this.buffs.pierce ? 1 : 0);
+            spawnProjectile(startX, startY, angle, pSpeed, pDamage, pSize, color, pierce);
+            spawnProjectile(startX, startY, angle - spreadAngle, pSpeed, pDamage, pSize, color, pierce);
+            spawnProjectile(startX, startY, angle + spreadAngle, pSpeed, pDamage, pSize, color, pierce);
         }
         if(this.hasPower('backfire'))spawnProjectile(this.x-Math.cos(angle)*(this.size/2+8),this.y-Math.sin(angle)*(this.size/2+8),angle+Math.PI,pSpeed,pDamage*.72,pSize,color,this.hasPower('piercingCore')?2:0);
         if(this.hasPower('clone'))spawnProjectile(startX+Math.cos(angle+Math.PI/2)*18,startY+Math.sin(angle+Math.PI/2)*18,angle,pSpeed,pDamage*.55,pSize*.85,'#93c5fd',0);
