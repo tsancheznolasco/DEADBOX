@@ -950,7 +950,8 @@ function drawWorkshopPreview(){
 }
 // Sustituye el desplegable nativo por uno propio del juego. El <select> original queda oculto y
 // sigue siendo la fuente de estado, así que setupRunSelectors, .value y los eventos change no cambian.
-function closeAllSelects(except){for(const el of document.querySelectorAll('.vs.open'))if(el!==except)el.classList.remove('open');}
+const selectInstances=[];
+function closeAllSelects(except){for(const instance of selectInstances)if(instance.wrap!==except)instance.close();}
 function enhanceSelect(select){
     // Mejora progresiva: si al entorno le falta algo, se queda el <select> nativo, que sigue funcionando.
     if(!select||!select.dataset||select.dataset.enhanced||!select.parentNode||typeof MutationObserver!=='function')return;
@@ -958,11 +959,26 @@ function enhanceSelect(select){
     const wrap=document.createElement('div');wrap.className='vs';
     select.parentNode.insertBefore(wrap,select);wrap.appendChild(select);
     const value=document.createElement('button');value.type='button';value.className='vs-value';
-    // La visibilidad de la lista depende solo de .vs.open; con dos fuentes de verdad, cerrar
-    // desde fuera quitaba la clase open pero dejaba la lista en pantalla.
+    // La lista cuelga de <body>, no del desplegable: dentro la recortaban el clip-path del panel
+    // y el overflow de la pantalla, y las opciones de abajo quedaban invisibles.
     const list=document.createElement('div');list.className='vs-list';
-    wrap.appendChild(value);wrap.appendChild(list);
-    const close=()=>wrap.classList.remove('open');
+    wrap.appendChild(value);document.body.appendChild(list);
+    const close=()=>{wrap.classList.remove('open');list.classList.remove('open');};
+    // Se abre hacia el lado con más sitio y se recorta a filas enteras, para que nunca quede
+    // media opción asomando por el borde.
+    const position=()=>{
+        const rect=value.getBoundingClientRect(),gap=6,margin=10;
+        const below=window.innerHeight-rect.bottom-gap-margin,above=rect.top-gap-margin;
+        const openUp=below<170&&above>below;
+        const space=Math.max(110,Math.min(340,openUp?above:below));
+        list.style.left=`${rect.left}px`;list.style.width=`${rect.width}px`;list.style.maxHeight=`${space}px`;
+        if(openUp){list.style.top='auto';list.style.bottom=`${window.innerHeight-rect.top+gap}px`;}
+        else{list.style.bottom='auto';list.style.top=`${rect.bottom+gap}px`;}
+        const row=list.firstElementChild?.offsetHeight||0;
+        if(row>0)list.style.maxHeight=`${Math.max(3,Math.floor(space/row))*row}px`;
+        const selected=list.querySelector('.vs-option.selected');
+        if(selected)list.scrollTop=Math.max(0,selected.offsetTop-list.clientHeight/2+selected.offsetHeight/2);
+    };
     const render=()=>{
         value.textContent=select.options[select.selectedIndex]?.textContent||'';
         list.innerHTML='';
@@ -983,13 +999,18 @@ function enhanceSelect(select){
         event.stopPropagation();
         const open=wrap.classList.contains('open');
         closeAllSelects();
-        if(!open)wrap.classList.add('open');
+        if(!open){wrap.classList.add('open');list.classList.add('open');position();}
     });
+    list.addEventListener('click',event=>event.stopPropagation());
+    selectInstances.push({wrap,close});
     select.addEventListener('change',render);
     new MutationObserver(render).observe(select,{childList:true,subtree:true,attributes:true,characterData:true});
     render();
 }
 document.addEventListener('click',()=>closeAllSelects());
+// La lista va en coordenadas fijas, así que dejaría de seguir a su botón si algo se mueve.
+window.addEventListener('resize',()=>closeAllSelects());
+window.addEventListener('scroll',()=>closeAllSelects(),true);
 window.addEventListener('keydown',event=>{if(event.key==='Escape')closeAllSelects();});
 // Reintentar sin tocar el ratón: en un portal cada paso extra tras morir pierde jugadores.
 window.addEventListener('keydown',event=>{if(gameState==='GAME_OVER'&&(event.key==='Enter'||event.key===' ')){event.preventDefault();initGame();}});

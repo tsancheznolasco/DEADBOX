@@ -678,9 +678,9 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
 
 .vs-list {
     display: none;
-    position: absolute;
-    left: 0; right: 0; top: calc(100% + 4px);
-    max-height: 260px;
+    position: fixed;            /* colgada de <body> para que nada la recorte */
+    left: 0; top: 0;
+    max-height: 340px;
     overflow-y: auto;
     background: #0a111c;
     border: 1px solid var(--line-hot);
@@ -688,7 +688,7 @@ input[type="range"] { accent-color: var(--accent); background: #0b1220; color: v
     z-index: 40;
     clip-path: polygon(var(--notch) 0, 100% 0, 100% calc(100% - var(--notch)), calc(100% - var(--notch)) 100%, 0 100%, 0 var(--notch));
 }
-.vs.open .vs-list { display: block; }
+.vs-list.open { display: block; }
 .vs-option {
     width: 100%;
     padding: 9px 12px;
