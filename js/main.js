@@ -1010,7 +1010,12 @@ function enhanceSelect(select){
 document.addEventListener('click',()=>closeAllSelects());
 // La lista va en coordenadas fijas, así que dejaría de seguir a su botón si algo se mueve.
 window.addEventListener('resize',()=>closeAllSelects());
-window.addEventListener('scroll',()=>closeAllSelects(),true);
+window.addEventListener('scroll',event=>{
+    // Desplazarse dentro de la propia lista no la mueve respecto al botón: si esto la cerrara,
+    // sería imposible llegar a las opciones de abajo.
+    if(event.target?.classList?.contains('vs-list'))return;
+    closeAllSelects();
+},true);
 window.addEventListener('keydown',event=>{if(event.key==='Escape')closeAllSelects();});
 // Reintentar sin tocar el ratón: en un portal cada paso extra tras morir pierde jugadores.
 window.addEventListener('keydown',event=>{if(gameState==='GAME_OVER'&&(event.key==='Enter'||event.key===' ')){event.preventDefault();initGame();}});
