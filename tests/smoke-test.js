@@ -340,6 +340,16 @@ vm.runInThisContext(`
   }
   if(Object.values(SFX).some(s=>s.from<=150))throw new Error('Un efecto arranca dentro de la banda del bajo');
   if(Object.values(SFX).some(s=>s.level<=.1))throw new Error('Un efecto quedaría por debajo de la música');
+  if(!(SFX_MIX>.5&&SFX_MIX<1))throw new Error('La mezcla de efectos debe bajarlos sin apagarlos');
+
+  // Con la pestaña oculta no puede quedar música sonando: pausar sólo la atenúa.
+  beginRun(1);
+  if(!musicTimer)throw new Error('La música no arrancó con la partida');
+  handleWindowHidden();
+  if(musicTimer)throw new Error('La música siguió sonando con la ventana oculta');
+  handleWindowVisible();
+  if(!musicTimer)throw new Error('La música no volvió al recuperar la ventana');
+  handleWindowHidden();
 
   // Los deslizadores deben silenciar del todo en 0, llegar a full en 1 y bajar de forma perceptible.
   if(volumeCurve(0)!==0||volumeCurve(1)!==1)throw new Error('La curva de volumen no cubre el recorrido completo');

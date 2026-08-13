@@ -283,6 +283,9 @@ window.addEventListener('resize',resize);resize();Input.init();
 
 function ensureAudio(){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();audioCtx.resume?.();}catch(e){console.warn('Audio skipped',e);}return audioCtx;}
 // Los efectos suenan por encima del bajo de la música: si comparten banda grave, quedan enmascarados.
+// Los efectos se sientan un poco por debajo de la música en la mezcla. Se hace aquí y no bajando
+// el valor por defecto del deslizador porque así también lo nota quien ya tiene ajustes guardados.
+const SFX_MIX = .74;
 const SFX={shoot:{from:760,to:300,dur:.07,wave:'square',level:.13,gap:45},hit:{from:340,to:120,dur:.12,wave:'sawtooth',level:.19,gap:30},earthquake:{from:190,to:55,dur:.24,wave:'triangle',level:.24,gap:80},combo:{from:520,to:390,dur:.06,wave:'square',level:.11,gap:28}};
 const lastSoundByType={};
 function playSound(type,pitch=1){
@@ -293,7 +296,7 @@ function playSound(type,pitch=1){
         const osc=audioCtx.createOscillator(),gain=audioCtx.createGain(),at=audioCtx.currentTime;
         const bend=clamp(Number(pitch)||1,.5,3);
         osc.type=spec.wave;osc.frequency.setValueAtTime(spec.from*bend,at);osc.frequency.exponentialRampToValueAtTime(spec.to*bend,at+spec.dur);
-        gain.gain.setValueAtTime(spec.level*effectsVolume(),at);gain.gain.exponentialRampToValueAtTime(.0005,at+spec.dur+.03);
+        gain.gain.setValueAtTime(spec.level*SFX_MIX*effectsVolume(),at);gain.gain.exponentialRampToValueAtTime(.0005,at+spec.dur+.03);
         osc.connect(gain);gain.connect(audioCtx.destination);osc.start(at);osc.stop(at+spec.dur+.05);
     }catch(e){console.warn('Audio skipped',e);}
 }
@@ -864,10 +867,16 @@ window.addEventListener('beforeunload',()=>saveProgress('unexpected-close'));
 // Se pausa y se calla, y al volver no se reanuda solo para no devolver al jugador a un golpe.
 function handleWindowHidden(){
     if(gameState==='PLAYING'){saveProgress('background');pauseGame({silent:true});}
-    else stopMusic();
+    // Pausar sólo atenúa la música, así que con la pestaña oculta seguía sonando de fondo.
+    // Fuera de la vista se calla del todo y se suspende el contexto para no gastar audio.
+    stopMusic();
+    try{audioCtx?.suspend?.();}catch{}
 }
 function handleWindowVisible(){
-    if(gameState==='UPGRADING'||gameState==='COUNTDOWN')startMusic();
+    if(!audioCtx)return;
+    try{audioCtx.resume?.();}catch{}
+    // En pausa vuelve atenuada, que es lo que permite oír el deslizador de música al ajustarlo.
+    if(['PLAYING','PAUSED','UPGRADING','COUNTDOWN'].includes(gameState))startMusic();
 }
 document.addEventListener('visibilitychange',()=>{if(document.hidden)handleWindowHidden();else handleWindowVisible();});
 window.addEventListener('blur',handleWindowHidden);
