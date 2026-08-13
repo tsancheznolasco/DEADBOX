@@ -219,6 +219,19 @@ vm.runInThisContext(`
   if(checkRecovery())throw new Error('Tras morir no debería quedar partida en curso');
   if(startButton.textContent!==t('menu.play'))throw new Error('Sin partida en curso el botón debe decir Jugar');
 
+  // En un móvil la cámara se aleja para ver más arena, pero el escritorio no debe cambiar.
+  (function(){
+    const realW=window.innerWidth, realH=window.innerHeight;
+    const at=(w,h)=>{window.innerWidth=w;window.innerHeight=h;resize();return{zoom:+(w/canvas.logicalWidth).toFixed(3),seesWide:Math.round(canvas.logicalWidth),seesTall:Math.round(canvas.logicalHeight)};};
+    const desktop=at(1280,720), landscapePhone=at(844,390), portraitPhone=at(390,844);
+    if(desktop.zoom!==1)throw new Error('El escritorio no debería alejarse');
+    if(desktop.seesWide!==1280)throw new Error('El escritorio cambió su área visible');
+    if(landscapePhone.seesWide<=844)throw new Error('El móvil apaisado no ve más arena');
+    if(portraitPhone.seesWide<=390)throw new Error('El móvil vertical no ve más arena');
+    if(portraitPhone.seesTall<=844)throw new Error('El móvil vertical no ve más alto');
+    window.innerWidth=realW;window.innerHeight=realH;resize();
+  })();
+
   // La dificultad tenía topes que se alcanzaban entre las rondas 16 y 23: a partir de ahí el juego
   // dejaba de endurecerse. Vida, daño y presión deben seguir creciendo en rondas altas.
   (function(){

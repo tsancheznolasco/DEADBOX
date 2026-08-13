@@ -261,15 +261,23 @@ function spawnFood(x,y,type=null,source='normal'){
 // todo salía borroso y el movimiento parecía arrastrarse. Se dibuja a la densidad real y se
 // mantiene el sistema de coordenadas en píxeles CSS para no tocar cámara, HUD ni colisiones.
 let viewWidth = window.innerWidth, viewHeight = window.innerHeight;
+// En pantallas pequeñas se aleja la cámara: con el zoom de escritorio un móvil sólo ve un recorte
+// del arena y no da tiempo a reaccionar a lo que entra por los lados.
+function worldZoom(){
+    const shortSide=Math.min(window.innerWidth,window.innerHeight);
+    if(shortSide>=560)return 1;             // escritorio y tablet se quedan como estaban
+    return Math.max(.58,shortSide/560);
+}
 function resize(){
-    const density=Math.min(window.devicePixelRatio||1,2);
-    viewWidth=window.innerWidth;viewHeight=window.innerHeight;
-    canvas.width=Math.round(viewWidth*density);
-    canvas.height=Math.round(viewHeight*density);
-    canvas.style.width=`${viewWidth}px`;
-    canvas.style.height=`${viewHeight}px`;
+    const density=Math.min(window.devicePixelRatio||1,2),zoom=worldZoom();
+    viewWidth=window.innerWidth/zoom;viewHeight=window.innerHeight/zoom;
+    canvas.width=Math.round(window.innerWidth*density);
+    canvas.height=Math.round(window.innerHeight*density);
+    canvas.style.width=`${window.innerWidth}px`;
+    canvas.style.height=`${window.innerHeight}px`;
+    // El ratón y el táctil se mapean contra el tamaño lógico, que ya lleva el zoom incorporado.
     canvas.logicalWidth=viewWidth;canvas.logicalHeight=viewHeight;
-    ctx.setTransform(density,0,0,density,0,0);
+    ctx.setTransform(density*zoom,0,0,density*zoom,0,0);
 }
 window.addEventListener('resize',resize);resize();Input.init();
 
@@ -690,6 +698,10 @@ function updateHUD(time){
     document.getElementById('weapon-level').textContent=t('hud.weapon',{level:player.weaponLevel});
     const elapsed=time-player.lastJumpTime,effectiveJump=player.jumpCooldown/(player.buffs.jumpRate?.value||1),jump=document.getElementById('jump-cooldown');if(player.noJump){jump.textContent=t('hud.jumpBlocked');jump.style.color='#f87171';if(jumpCooldownBar){jumpCooldownBar.style.width='100%';jumpCooldownBar.className='cooldown-fill blocked';}}else if(elapsed>=effectiveJump){jump.textContent=t('hud.jumpReady');jump.style.color='#34d399';if(jumpCooldownBar)jumpCooldownBar.className='cooldown-fill ready';}else{jump.textContent=t('hud.jumpTime',{time:((effectiveJump-elapsed)/1000).toFixed(1)});jump.style.color='#94a3b8';if(jumpCooldownBar){jumpCooldownBar.className='cooldown-fill';jumpCooldownBar.style.width=`${clamp(elapsed/effectiveJump*100,0,100)}%`;}}
     const dash=document.getElementById('dash-cooldown');if(player.isDashing){dash.textContent=t('hud.dashActive');dash.style.color='#7dd3fc';if(dashCooldownBar)dashCooldownBar.className='cooldown-fill active';}else if(player.dashAvailable){dash.textContent=player.maxDashCharges>1?t('hud.dashCharges',{count:player.dashCharges}):t('hud.dashReady');dash.style.color='#38bdf8';if(dashCooldownBar)dashCooldownBar.className='cooldown-fill ready';}else{dash.textContent=t('hud.dashTime',{time:Math.max(0,player.dashRechargeTimer/1000).toFixed(1)});dash.style.color='#94a3b8';if(dashCooldownBar){dashCooldownBar.className='cooldown-fill';dashCooldownBar.style.width=`${clamp((1-player.dashRechargeTimer/player.getDashCooldown())*100,0,100)}%`;}}
+    // El botón Q sólo sirve con un poder guardado (el resto se activan solos al recogerlos),
+    // así que el resto del tiempo sólo estorbaba en una pantalla pequeña.
+    const powerButton=document.getElementById('touch-power');
+    if(powerButton)powerButton.classList.toggle('hidden',!player.storedPower);
     if(bossForRound&&bossForRound.active){bossHUD.classList.remove('hidden');bossName.textContent=t('boss.phase',{name:bossForRound.displayName||t('boss.miniboss'),phase:bossForRound.phase||1});bossBar.style.width=`${clamp(bossForRound.health/bossForRound.maxHealth*100,0,100)}%`;}else bossHUD.classList.add('hidden');
     if(time-hudEffectsTimer>100){hudEffectsTimer=time;renderActiveEffects();}
 }
@@ -862,13 +874,9 @@ window.addEventListener('blur',handleWindowHidden);
 window.addEventListener('focus',handleWindowVisible);
 // Girar a vertical tapa la partida con el aviso de rotación, así que se pausa en vez de seguir
 // jugándose detrás.
-function checkOrientation(){
-    if(!Input.touchActive)return;
-    const portrait=window.matchMedia?.('(orientation: portrait)')?.matches??window.innerHeight>window.innerWidth;
-    if(portrait&&gameState==='PLAYING')pauseGame({silent:true});
-}
-window.addEventListener('orientationchange',()=>setTimeout(checkOrientation,120));
-window.addEventListener('resize',checkOrientation);
+// El juego se puede jugar en vertical: el lienzo se reajusta y la cámara se aleja sola, así que
+// no hace falta obligar a girar el móvil.
+window.addEventListener('orientationchange',()=>setTimeout(resize,120));
 
 function renderBestiary(){
     const status=document.getElementById('bestiary-status').value,category=document.getElementById('bestiary-category').value,grid=document.getElementById('bestiary-grid');let entries=Object.values(ENEMY_CATALOG);
