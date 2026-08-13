@@ -149,11 +149,22 @@ vm.runInThisContext(`
   if(stickHalf.dx>=stickRight.dx)throw new Error('El joystick debería ser analógico, no todo o nada');
   const keyLeft=moveWith({x:0,y:0},{a:true});
   if(keyLeft.dx>=0)throw new Error('El teclado dejó de mover cuando no hay joystick');
-  // Sin ratón hay que apuntar solo: al enemigo más cercano.
-  resetEntities(); player.x=500; player.y=500;
-  queueDirectSpawn('normal',900,500); const near=queueDirectSpawn('normal',500,320);
-  const aim=touchAimPoint();
-  if(aim.x!==near.x||aim.y!==near.y)throw new Error('El apuntado automático no elige al más cercano');
+  // El joystick derecho apunta: la mira debe seguir su dirección, no al enemigo más cercano.
+  resetEntities(); player.x=500; player.y=500; player.aimAngle=0;
+  queueDirectSpawn('normal',500,320);            // un enemigo cerca que ya no debe atraer la mira
+  Input.aim.x=0; Input.aim.y=1;                  // apuntando hacia abajo
+  const aimDown=touchAimPoint();
+  if(aimDown.y<=player.y||Math.abs(aimDown.x-player.x)>1)throw new Error('La mira no sigue al joystick de apuntado');
+  Input.aim.x=-1; Input.aim.y=0;
+  const aimLeft=touchAimPoint();
+  if(aimLeft.x>=player.x)throw new Error('La mira no sigue al joystick hacia la izquierda');
+  // Soltar el pulgar mantiene la última dirección en vez de reiniciar el disparo.
+  Input.aim.x=0; Input.aim.y=0; player.aimAngle=Math.PI;
+  const aimIdle=touchAimPoint();
+  if(aimIdle.x>=player.x)throw new Error('Sin joystick debería conservarse la última dirección');
+  // Un joystick en el centro no debe producir una dirección inventada.
+  Input.aim.x=0; Input.aim.y=0; player.aimAngle=0;
+  if(touchAimPoint().x<=player.x)throw new Error('El centro del joystick no debe girar la mira');
   resetEntities();
   const fallback=touchAimPoint();
   if(!Number.isFinite(fallback.x)||!Number.isFinite(fallback.y))throw new Error('Sin enemigos el apuntado debe seguir siendo válido');

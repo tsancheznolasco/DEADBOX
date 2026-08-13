@@ -14,10 +14,12 @@ const Input = {
         x: 0,
         y: 0
     },
-    // Control táctil: vector analógico del joystick y modo de entrada actual.
+    // Control táctil: dos joysticks analógicos, mover a la izquierda y apuntar a la derecha.
     touchActive: false,
     move: { x: 0, y: 0 },
+    aim: { x: 0, y: 0 },
     stick: { id: null, active: false, baseX: 0, baseY: 0 },
+    aimStick: { id: null, active: false, baseX: 0, baseY: 0 },
 
     init() {
         window.addEventListener('keydown', (e) => {
@@ -42,42 +44,45 @@ const Input = {
         document.body?.classList?.toggle('touch-mode', on);
     },
 
-    // El joystick es flotante: nace donde cae el pulgar, que es más cómodo que uno fijo.
-    initTouch() {
-        const zone = document.getElementById('touch-move');
-        const base = document.getElementById('touch-stick-base');
-        const thumb = document.getElementById('touch-thumb');
-        if (!zone || !window.PointerEvent) return;
-        const maxRadius = 54;
+    // Cada joystick es flotante: nace donde cae el pulgar, más cómodo que uno fijo. Los dos
+    // comparten esta fábrica porque sólo cambian la zona, los elementos y el vector que llenan.
+    createStick(zoneId, baseId, thumbId, vector, state) {
+        const zone = document.getElementById(zoneId);
+        const base = document.getElementById(baseId);
+        const thumb = document.getElementById(thumbId);
+        if (!zone) return;
+        const maxRadius = 52;
 
         const place = (x, y) => {
-            let dx = x - this.stick.baseX, dy = y - this.stick.baseY;
+            let dx = x - state.baseX, dy = y - state.baseY;
             const length = Math.hypot(dx, dy);
             if (length > maxRadius) { dx = dx / length * maxRadius; dy = dy / length * maxRadius; }
-            this.move.x = dx / maxRadius;
-            this.move.y = dy / maxRadius;
-            if (thumb) thumb.style.transform = `translate(${this.stick.baseX + dx}px, ${this.stick.baseY + dy}px) translate(-50%, -50%)`;
+            vector.x = dx / maxRadius;
+            vector.y = dy / maxRadius;
+            if (thumb) thumb.style.transform = `translate(${state.baseX + dx}px, ${state.baseY + dy}px) translate(-50%, -50%)`;
         };
         const start = e => {
             if (e.pointerType === 'mouse') return;
             this.setTouchMode(true);
-            this.stick.id = e.pointerId; this.stick.active = true;
-            this.stick.baseX = e.clientX; this.stick.baseY = e.clientY;
+            state.id = e.pointerId; state.active = true;
+            state.baseX = e.clientX; state.baseY = e.clientY;
             if (base) { base.style.transform = `translate(${e.clientX}px, ${e.clientY}px) translate(-50%, -50%)`; base.style.opacity = '1'; }
             if (thumb) thumb.style.opacity = '1';
             place(e.clientX, e.clientY);
-            zone.setPointerCapture?.(e.pointerId);
+            // Capturar el puntero puede fallar; si escapara, preventDefault no se ejecutaría y la
+            // página haría scroll o zoom en medio de la partida.
+            try { zone.setPointerCapture?.(e.pointerId); } catch {}
             e.preventDefault();
         };
         const move = e => {
-            if (!this.stick.active || e.pointerId !== this.stick.id) return;
+            if (!state.active || e.pointerId !== state.id) return;
             place(e.clientX, e.clientY);
             e.preventDefault();
         };
         const end = e => {
-            if (e.pointerId !== this.stick.id) return;
-            this.stick.active = false; this.stick.id = null;
-            this.move.x = 0; this.move.y = 0;
+            if (e.pointerId !== state.id) return;
+            state.active = false; state.id = null;
+            vector.x = 0; vector.y = 0;
             if (base) base.style.opacity = '0';
             if (thumb) thumb.style.opacity = '0';
         };
@@ -85,6 +90,12 @@ const Input = {
         zone.addEventListener('pointermove', move);
         zone.addEventListener('pointerup', end);
         zone.addEventListener('pointercancel', end);
+    },
+
+    initTouch() {
+        if (!window.PointerEvent) return;
+        this.createStick('touch-move', 'touch-stick-base', 'touch-thumb', this.move, this.stick);
+        this.createStick('touch-aim', 'touch-aim-base', 'touch-aim-thumb', this.aim, this.aimStick);
 
         // Botones de habilidad: el disparo es automático, así que sólo hacen falta estos.
         for (const [id, key] of [['touch-jump', 'space'], ['touch-dash', 'shift'], ['touch-power', 'q']]) {
@@ -170,9 +181,12 @@ const Input = {
         for (const key of Object.keys(this.keys)) this.keys[key] = false;
         this.pressed.clear();
         this.move.x = 0; this.move.y = 0;
+        this.aim.x = 0; this.aim.y = 0;
         this.stick.active = false; this.stick.id = null;
-        const base = document.getElementById('touch-stick-base'), thumb = document.getElementById('touch-thumb');
-        if (base) base.style.opacity = '0';
-        if (thumb) thumb.style.opacity = '0';
+        this.aimStick.active = false; this.aimStick.id = null;
+        for (const id of ['touch-stick-base', 'touch-thumb', 'touch-aim-base', 'touch-aim-thumb']) {
+            const el = document.getElementById(id);
+            if (el) el.style.opacity = '0';
+        }
     }
 };

@@ -40,15 +40,12 @@ function campEdges(){
 }
 // Sin ratón no hay a dónde apuntar, así que en táctil el disparo automático busca al enemigo más
 // cercano; si no queda ninguno, se mantiene la orientación actual.
+// El joystick derecho manda; sin entrada se mantiene la última dirección, como en cualquier
+// twin-stick, para que soltar el pulgar no desvíe el disparo.
 function touchAimPoint(){
-    let best=null,bestDistance=Infinity;
-    for(const z of zombies){
-        if(!z.active)continue;
-        const d=(z.x-player.x)**2+(z.y-player.y)**2;
-        if(d<bestDistance){bestDistance=d;best=z;}
-    }
-    if(best)return{x:best.x,y:best.y};
-    return{x:player.x+Math.cos(player.aimAngle)*120,y:player.y+Math.sin(player.aimAngle)*120};
+    const length=Math.hypot(Input.aim.x,Input.aim.y);
+    if(length>.001)return{x:player.x+Input.aim.x/length*160,y:player.y+Input.aim.y/length*160};
+    return{x:player.x+Math.cos(player.aimAngle)*160,y:player.y+Math.sin(player.aimAngle)*160};
 }
 function enemyLabel(z){if(!z)return null;return z.displayName||(typeof ENEMY_CATALOG!=='undefined'?ENEMY_CATALOG[z.type]?.name:null)||z.type||null;}
 function damagePlayer(amount,source){if(source)lastDamageSource=source;return player.takeDamage(amount);}
@@ -870,7 +867,8 @@ function openBestiary(){uiStartScreen.classList.add('hidden');uiBestiaryScreen.c
 function closeBestiary(){uiBestiaryScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');}
 // Tutorial de la primera ronda: cada paso espera a que el jugador use el control o a que expire.
 const TUTORIAL_STEPS=[
-    {key:'move',duration:4500,done:()=>Input.keys.w||Input.keys.a||Input.keys.s||Input.keys.d},
+    {key:'move',duration:4500,done:()=>Input.keys.w||Input.keys.a||Input.keys.s||Input.keys.d||Input.stick.active},
+    {key:'aim',duration:5000,touchOnly:true,done:()=>Input.aimStick.active},
     {key:'jump',duration:7000,done:()=>player&&player.lastJumpTime>0},
     {key:'dash',duration:7000,done:()=>player&&(player.dashCharges<player.maxDashCharges||player.isDashing)}
 ];
@@ -880,8 +878,10 @@ function updateTutorial(dt){
     const el=document.getElementById('tutorial-hint');if(!el)return;
     if(!tutorialActive||gameState!=='PLAYING'||tutorialStep>=TUTORIAL_STEPS.length){el.classList.add('hidden');return;}
     const step=TUTORIAL_STEPS[tutorialStep];
+    // El paso del joystick de apuntado no existe con ratón: se salta sin gastar su tiempo.
+    if(step.touchOnly&&!Input.touchActive){tutorialStep++;tutorialTimer=0;return;}
     tutorialTimer+=dt;
-    el.textContent=t(`tutorial.${step.key}`);el.classList.remove('hidden');
+    el.textContent=t(Input.touchActive?`tutorial.touch.${step.key}`:`tutorial.${step.key}`);el.classList.remove('hidden');
     if(step.done()||tutorialTimer>=step.duration){
         tutorialStep++;tutorialTimer=0;
         if(tutorialStep>=TUTORIAL_STEPS.length){tutorialActive=false;gameMeta.tutorialDone=true;saveMeta();el.classList.add('hidden');}

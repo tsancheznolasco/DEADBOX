@@ -90,14 +90,18 @@ canvas {
 body.touch-mode.in-run .touch-controls { display: block; }
 body.touch-mode canvas { cursor: none; }
 
-.touch-move {
+/* Mitad izquierda para moverse, mitad derecha para apuntar. Los botones se quedan encima de la
+   zona de apuntado, así que se tocan sin invocar el joystick. */
+.touch-zone {
     position: absolute;
-    left: 0; bottom: 0;
-    width: 55%; height: 78%;
+    bottom: 0;
+    height: 82%;
     pointer-events: auto;
     touch-action: none;
     z-index: 12;
 }
+.touch-move { left: 0; width: 50%; }
+.touch-aim { right: 0; width: 50%; }
 
 .touch-stick-base, .touch-thumb {
     position: fixed;
@@ -108,18 +112,20 @@ body.touch-mode canvas { cursor: none; }
     transition: opacity .12s ease;
     z-index: 13;
 }
-.touch-stick-base { width: 116px; height: 116px; border: 2px solid rgba(157,185,201,.3); background: rgba(9,12,17,.34); }
-.touch-thumb { width: 54px; height: 54px; border: 2px solid rgba(157,185,201,.65); background: rgba(157,185,201,.22); }
+.touch-stick-base { width: 112px; height: 112px; border: 2px solid rgba(157,185,201,.3); background: rgba(9,12,17,.34); }
+.touch-thumb { width: 52px; height: 52px; border: 2px solid rgba(157,185,201,.65); background: rgba(157,185,201,.22); }
+/* El pulgar de apuntado se distingue del de movimiento. */
+.touch-thumb-aim { border-color: rgba(127,212,208,.75); background: rgba(127,212,208,.2); }
 
+/* Columna pegada al borde derecho, justo encima de donde descansa el pulgar que apunta. */
 .touch-buttons {
     position: absolute;
-    right: 20px; bottom: 22px;
-    display: grid;
-    grid-template-columns: repeat(2, auto);
-    gap: 12px;
-    justify-items: end;
+    right: 14px; bottom: 132px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     pointer-events: auto;
-    z-index: 13;
+    z-index: 14;
 }
 
 .touch-btn {
@@ -200,9 +206,10 @@ body.touch-mode .round-timer-track { margin-top: 5px; height: 6px; }
     .hud-top-center { width: min(320px, 40vw); padding: 8px 14px; }
     #round-info { font-size: 1rem; }
     .tutorial-hint { bottom: 56px; font-size: .82rem; padding: 7px 15px; }
-    .touch-btn { width: 62px; height: 62px; font-size: 1.1rem; }
-    .touch-btn-wide { height: 50px; }
-    .touch-buttons { right: 14px; bottom: 14px; gap: 9px; }
+    .touch-btn { width: 54px; height: 54px; font-size: 1rem; }
+    .touch-buttons { right: 10px; bottom: 104px; gap: 8px; }
+    .touch-stick-base { width: 96px; height: 96px; }
+    .touch-thumb { width: 46px; height: 46px; }
 }
 
 /* UI Overlays */
