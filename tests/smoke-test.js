@@ -60,7 +60,7 @@ document.exitFullscreen = () => Promise.resolve();
 global.localStorage = {data:new Map(),getItem(k){return this.data.has(k)?this.data.get(k):null;},setItem(k,v){this.data.set(k,String(v));},removeItem(k){this.data.delete(k);}};
 global.requestAnimationFrame = () => 1;
 
-for (const file of ['cosmetics.js','pool.js','particle.js','projectile.js','input.js','i18n.js','content.js','difficulty.js','zombie.js','player.js','spawner.js','main.js']) {
+for (const file of ['platform.js','cosmetics.js','pool.js','particle.js','projectile.js','input.js','i18n.js','content.js','difficulty.js','zombie.js','player.js','spawner.js','main.js']) {
   vm.runInThisContext(fs.readFileSync(`${root}/js/${file}`,'utf8'), {filename:file});
 }
 
@@ -341,6 +341,51 @@ vm.runInThisContext(`
   if(Object.values(SFX).some(s=>s.from<=150))throw new Error('Un efecto arranca dentro de la banda del bajo');
   if(Object.values(SFX).some(s=>s.level<=.1))throw new Error('Un efecto quedaría por debajo de la música');
   if(!(SFX_MIX>.5&&SFX_MIX<1))throw new Error('La mezcla de efectos debe bajarlos sin apagarlos');
+
+  // Sin SDK (aquí no existe) nada puede lanzar y el almacenamiento debe seguir siendo localStorage.
+  if(Platform.environment!=='none')throw new Error('Sin SDK el entorno debería ser none');
+  if(Platform.usable)throw new Error('Sin SDK no puede considerarse utilizable');
+  if(Storage.backend!==null)throw new Error('Sin SDK el almacenamiento debe seguir siendo local');
+  Platform.gameplayStart();Platform.gameplayStop();Platform.loadingStart();Platform.loadingStop();
+  if(Platform.call('game.gameplayStart')!==null)throw new Error('Una llamada sin SDK debe devolver null');
+  // Sin anuncio disponible tiene que avisar por adError, o el juego se quedaría esperando.
+  let adFailed=false;
+  Platform.requestAd('midgame',{adError:()=>{adFailed=true;}});
+  if(!adFailed)throw new Error('Sin SDK el anuncio debe reportar error para no colgar la partida');
+  // Un SDK que lanza en cada llamada (entorno disabled) tampoco puede tumbar el juego.
+  const quietWarn=console.warn;console.warn=()=>{};   // los avisos de abajo son intencionados
+  const hostileSdk={game:{gameplayStart(){throw new Error('disabled');}},ad:{requestAd(){throw new Error('disabled');}}};
+  const realSdk=Platform.sdk,realUsable=Platform.usable;
+  Platform.sdk=hostileSdk;Platform.usable=true;
+  if(Platform.call('game.gameplayStart')!==null)throw new Error('Una llamada que lanza debe devolver null');
+  let hostileAdFailed=false;
+  Platform.requestAd('midgame',{adError:()=>{hostileAdFailed=true;}});
+  if(!hostileAdFailed)throw new Error('Un anuncio que lanza debe reportar error');
+  Platform.sdk=realSdk;Platform.usable=realUsable;console.warn=quietWarn;
+  // El guardado sigue funcionando a través de la fachada.
+  Storage.setItem('__probe__','1');
+  if(Storage.getItem('__probe__')!=='1')throw new Error('La fachada de almacenamiento no guarda');
+  Storage.removeItem('__probe__');
+  if(Storage.getItem('__probe__')!==null)throw new Error('La fachada de almacenamiento no borra');
+
+  // Los avisos de partida deben salir en los momentos correctos, aunque el SDK real decida luego
+  // qué hace con ellos. Se espía nuestra propia capa, que es lo que controlamos.
+  (function(){
+    const calls=[];
+    const realCall=Platform.call.bind(Platform);
+    Platform.call=function(path,...args){calls.push(path);return realCall(path,...args);};
+    gameState='START';
+    beginRun(1);
+    pauseGame();
+    resumeFromPause();
+    endRound();
+    gameState='PLAYING'; player.health=0;
+    for(let i=0;i<5&&gameState==='PLAYING';i++)update(16,performance.now()+i*16);
+    Platform.call=realCall;
+    const lifecycle=calls.filter(c=>c.startsWith('game.gameplay'));
+    const expected=['game.gameplayStart','game.gameplayStop','game.gameplayStart','game.gameplayStop','game.gameplayStop'];
+    if(lifecycle.join(',')!==expected.join(','))throw new Error('Secuencia de avisos de partida incorrecta: '+lifecycle.join(','));
+  })();
 
   // Estallidos dirigidos y sacudida sólo en jefes.
   (function(){

@@ -1,5 +1,5 @@
 const META_KEY = 'deadboxMetaV1';
-if(!localStorage.getItem(META_KEY)&&localStorage.getItem('arenaMetaV1'))localStorage.setItem(META_KEY,localStorage.getItem('arenaMetaV1'));
+if(!Storage.getItem(META_KEY)&&Storage.getItem('arenaMetaV1'))Storage.setItem(META_KEY,Storage.getItem('arenaMetaV1'));
 const DIFFICULTY_VALUES = [1,25,50,75,100,125,150,175,200,225,250,275,300,325,350,375,400,425,450,475,500];
 const START_ROUNDS = [1,10,20,30,40,50];
 const COMPLEXITY_COST = Object.freeze({
@@ -10,7 +10,7 @@ const COMPLEXITY_COST = Object.freeze({
     tank:4,camouflage:4,mirror:4,miniboss:12,boss:18
 });
 
-function readMeta(){try{const parsed=JSON.parse(localStorage.getItem(META_KEY)||'null');return parsed&&typeof parsed==='object'?parsed:{};}catch{return{};}}
+function readMeta(){try{const parsed=JSON.parse(Storage.getItem(META_KEY)||'null');return parsed&&typeof parsed==='object'?parsed:{};}catch{return{};}}
 let gameMeta=readMeta();
 gameMeta.selectedDifficulty=DIFFICULTY_VALUES.includes(Number(gameMeta.selectedDifficulty))?Number(gameMeta.selectedDifficulty):100;
 gameMeta.selectedStartRound=START_ROUNDS.includes(Number(gameMeta.selectedStartRound))?Number(gameMeta.selectedStartRound):1;
@@ -19,7 +19,7 @@ gameMeta.recentBosses=Array.isArray(gameMeta.recentBosses)?gameMeta.recentBosses
 gameMeta.recentMinibosses=Array.isArray(gameMeta.recentMinibosses)?gameMeta.recentMinibosses.slice(-5):[];
 gameMeta.recordsByMode=gameMeta.recordsByMode&&typeof gameMeta.recordsByMode==='object'?gameMeta.recordsByMode:{};
 normalizeCosmetics(gameMeta);
-function saveMeta(){try{localStorage.setItem(META_KEY,JSON.stringify(gameMeta));}catch{}}
+function saveMeta(){try{Storage.setItem(META_KEY,JSON.stringify(gameMeta));}catch{}}
 
 let selectedDifficulty=gameMeta.selectedDifficulty;
 let selectedStartRound=Math.min(gameMeta.selectedStartRound,gameMeta.unlockedStartRound);

@@ -11,7 +11,7 @@ const required = [
   'assets/fonts/Outfit-VariableFont_wght.ttf', 'assets/fonts/OFL-Outfit.txt'
 ];
 const scripts = [
-  'js/cosmetics.js', 'js/pool.js', 'js/particle.js', 'js/projectile.js', 'js/input.js',
+  'js/platform.js', 'js/cosmetics.js', 'js/pool.js', 'js/particle.js', 'js/projectile.js', 'js/input.js',
   'js/i18n.js', 'js/content.js', 'js/difficulty.js', 'js/zombie.js',
   'js/player.js', 'js/spawner.js', 'js/main.js'
 ];
@@ -27,7 +27,12 @@ const references = [
   ...[...css.matchAll(/url\(['"]?([^'")]+)['"]?\)/g)].map(match => match[1])
 ].filter(reference => !reference.startsWith('data:') && !reference.startsWith('#'));
 
+// El SDK de CrazyGames tiene que servirse desde su dominio, así que es la única referencia
+// remota permitida. Cualquier otra sigue siendo un fallo: el juego debe ser autocontenido.
+const ALLOWED_REMOTE = ['https://sdk.crazygames.com/crazygames-sdk-v3.js'];
+
 for (const reference of references) {
+  if (ALLOWED_REMOTE.includes(reference)) continue;              // se sirve desde el portal
   if (/^(?:https?:)?\/\//i.test(reference)) failures.push(`Remote reference remains: ${reference}`);
   else if (!fs.existsSync(path.resolve(root, reference))) failures.push(`Broken reference: ${reference}`);
 }

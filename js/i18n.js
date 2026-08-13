@@ -66,10 +66,10 @@ const FOOD_TEXT = {
 };
 
 const LANGUAGE_KEY='deadboxLanguage';
-if(!localStorage.getItem(LANGUAGE_KEY)&&localStorage.getItem('arenaLanguage'))localStorage.setItem(LANGUAGE_KEY,localStorage.getItem('arenaLanguage'));
-let currentLanguage = localStorage.getItem(LANGUAGE_KEY) || 'en';
+if(!Storage.getItem(LANGUAGE_KEY)&&Storage.getItem('arenaLanguage'))Storage.setItem(LANGUAGE_KEY,Storage.getItem('arenaLanguage'));
+let currentLanguage = Storage.getItem(LANGUAGE_KEY) || 'en';
 function t(path, vars={}) { let value=path.split('.').reduce((obj,key)=>obj?.[key],TRANSLATIONS[currentLanguage]); if(value==null)value=path.split('.').reduce((obj,key)=>obj?.[key],TRANSLATIONS.en)??path;if(typeof value!=='string')return value;return value.replace(/\{(\w+)\}/g,(_,key)=>vars[key]??`{${key}}`); }
 function roundName(internal){const pair=ROUND_NAMES[internal];return pair?(currentLanguage==='es'?pair[1]:pair[0]):internal;}
 function foodText(type){const pair=FOOD_TEXT[type];return pair?(currentLanguage==='es'?pair[1]:pair[0]):[type,''];}
 function applyTranslations(root=document){root.querySelectorAll?.('[data-i18n]').forEach(el=>{el.textContent=t(el.dataset.i18n);});document.documentElement.lang=currentLanguage;window.dispatchEvent(new CustomEvent('language_changed',{detail:currentLanguage}));}
-function setLanguage(language){currentLanguage=TRANSLATIONS[language]?language:'en';localStorage.setItem(LANGUAGE_KEY,currentLanguage);for(const id of['language-main','language-pause','language-options']){const el=document.getElementById(id);if(el)el.value=currentLanguage;}applyTranslations();}
+function setLanguage(language){currentLanguage=TRANSLATIONS[language]?language:'en';Storage.setItem(LANGUAGE_KEY,currentLanguage);for(const id of['language-main','language-pause','language-options']){const el=document.getElementById(id);if(el)el.value=currentLanguage;}applyTranslations();}

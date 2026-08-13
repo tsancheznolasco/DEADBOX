@@ -18,6 +18,7 @@ DEADBOX/
 │       ├── Outfit-VariableFont_wght.ttf
 │       └── OFL-Outfit.txt
 ├── js/
+│   ├── platform.js
 │   ├── cosmetics.js
 │   ├── pool.js
 │   ├── particle.js
@@ -71,9 +72,10 @@ DEADBOX/
 | Partículas | `js/particle.js` y `js/main.js` | Entidad visual reutilizable y límites. |
 | Object pooling | `js/pool.js` | Pool genérico usado por entidades frecuentes. |
 | Aspectos y chatarra | `js/cosmetics.js`, `js/main.js` | Catálogo de aspectos, compra/equipamiento y pantalla del Taller. Solo cambian el dibujo. |
+| Portal CrazyGames | `js/platform.js` | SDK opcional: eventos de carga y de partida, anuncios y almacenamiento en la nube. Sin SDK el juego funciona igual. |
 | Traducciones | `js/i18n.js` | Diccionario central English/Español y funciones de traducción. |
 | Menús e interfaz | `index.html`, `style.css`, `js/main.js` | Marcado, estilos y conexiones de eventos/estado. |
-| Guardado y recuperación | `js/main.js`, `js/difficulty.js` | `localStorage`, respaldo válido, récords, opciones, partida y metadatos. |
+| Guardado y recuperación | `js/main.js`, `js/difficulty.js`, `js/platform.js` | Todo pasa por la fachada `Storage`: localStorage o el módulo de datos del portal. Respaldo válido, récords, opciones, partida y metadatos. |
 | Bestiary | `js/content.js`, `js/main.js`, `index.html` | Datos, descubrimientos/eliminaciones persistentes y pantalla/filtros. |
 | Render y game loop | `js/main.js` | Canvas, cámara, actualización, colisiones, UI y `requestAnimationFrame`. |
 
@@ -98,17 +100,18 @@ DEADBOX/
 
 `index.html` carga scripts clásicos en este orden:
 
-1. `cosmetics.js`
-2. `pool.js`
-3. `particle.js`
-4. `projectile.js`
-5. `input.js`
-6. `i18n.js`
-7. `content.js`
-8. `difficulty.js`
-9. `zombie.js`
-10. `player.js`
-11. `spawner.js`
-12. `main.js`
+1. `platform.js`
+2. `cosmetics.js`
+3. `pool.js`
+4. `particle.js`
+5. `projectile.js`
+6. `input.js`
+7. `i18n.js`
+8. `content.js`
+9. `difficulty.js`
+10. `zombie.js`
+11. `player.js`
+12. `spawner.js`
+13. `main.js`
 
 Debe mantenerse porque los archivos comparten símbolos globales y no usan módulos ES.

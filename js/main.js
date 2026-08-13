@@ -7,7 +7,7 @@ const BACKUP_KEY = 'deadboxSaveDataV3Backup';
 const RECORD_KEY = 'deadboxRecordsV3';
 const OPTIONS_KEY = 'deadboxOptionsV1';
 const BESTIARY_KEY = 'deadboxBestiaryV1';
-for(const[next,legacy]of[[SAVE_KEY,'arenaSaveDataV2'],[BACKUP_KEY,'arenaSaveDataV2Backup'],[RECORD_KEY,'arenaRecordsV2'],[OPTIONS_KEY,'arenaOptionsV1'],[BESTIARY_KEY,'arenaBestiaryV1']])if(!localStorage.getItem(next)&&localStorage.getItem(legacy))localStorage.setItem(next,localStorage.getItem(legacy));
+for(const[next,legacy]of[[SAVE_KEY,'arenaSaveDataV2'],[BACKUP_KEY,'arenaSaveDataV2Backup'],[RECORD_KEY,'arenaRecordsV2'],[OPTIONS_KEY,'arenaOptionsV1'],[BESTIARY_KEY,'arenaBestiaryV1']])if(!Storage.getItem(next)&&Storage.getItem(legacy))Storage.setItem(next,Storage.getItem(legacy));
 const ROUND_DURATIONS = [22, 27, 32, 37, 42];
 // Se declaran antes que loadOptions() porque se usan durante su primera llamada.
 const OPTIONS_VERSION = 2;
@@ -151,9 +151,9 @@ function loadOptions(){
     }
     return loaded;
 }
-function saveOptions(){localStorage.setItem(OPTIONS_KEY,JSON.stringify(options));}
+function saveOptions(){Storage.setItem(OPTIONS_KEY,JSON.stringify(options));}
 function loadBestiary(){const saved=loadJSON(BESTIARY_KEY);return saved&&saved.entries? saved : {version:1,entries:{}};}
-function saveBestiary(){try{localStorage.setItem(BESTIARY_KEY,JSON.stringify(bestiaryState));}catch(e){console.warn('Bestiary save skipped',e);}}
+function saveBestiary(){try{Storage.setItem(BESTIARY_KEY,JSON.stringify(bestiaryState));}catch(e){console.warn('Bestiary save skipped',e);}}
 function bestiaryRecord(id){return bestiaryState.entries[id]||(bestiaryState.entries[id]={discovered:false,killed:false,encounters:0,total:0,elite:0,bestTime:null,highestRound:0,firstEncounterRound:null,maxDifficulty:0,eliteAbilities:[]});}
 function registerEncounter(id){if(!ENEMY_CATALOG[id])return;const stat=bestiaryRecord(id),first=!stat.discovered;stat.discovered=true;stat.encounters++;stat.firstEncounterRound=stat.firstEncounterRound==null?currentRound:Math.min(stat.firstEncounterRound,currentRound);if(first||['boss','miniboss'].includes(ENEMY_CATALOG[id].category))saveBestiary();}
 function registerDefeat(z){const id=z.bestiaryId||z.type;if(!ENEMY_CATALOG[id])return;const stat=bestiaryRecord(id);stat.discovered=true;stat.killed=true;stat.total++;stat.maxDifficulty=Math.max(stat.maxDifficulty||0,selectedDifficulty);if(z.isElite){stat.elite++;stat.eliteAbilities=[...new Set([...(stat.eliteAbilities||[]),z.eliteAbility])];const variant=bestiaryRecord('elite');variant.discovered=true;variant.killed=true;variant.total++;variant.eliteAbilities=[...new Set([...(variant.eliteAbilities||[]),z.eliteAbility])];variant.maxDifficulty=Math.max(variant.maxDifficulty||0,selectedDifficulty);variant.highestRound=Math.max(variant.highestRound,currentRound);}stat.highestRound=Math.max(stat.highestRound,currentRound);if(z.isBoss||z.isMiniBoss){const elapsed=(performance.now()-(z.spawnedAt||roundStartedAt))/1000;stat.bestTime=stat.bestTime==null?elapsed:Math.min(stat.bestTime,elapsed);}saveBestiary();}
@@ -593,7 +593,7 @@ function beginRun(startRound=1,preparedPlayer=null){
     player=preparedPlayer||new Player(arena.width/2,arena.height/2);player.x=arena.width/2;player.y=arena.height/2;player.health=player.maxHealth;player.buffs={};player.powers={};player.storedPower=null;player.regen=null;player.orbs=0;player.dashCharges=player.maxDashCharges;player.dashRechargeTimer=0;resetEntities();score=0;combo=0;comboTimer=0;kills=0;bestCombo=0;autosaveTimer=0;adaptivePressure=0;roundsWithoutDamage=0;modifierHistory=[];enemyIdentityHistory=[];synergyHistory=[];obstacleHistory=[];stolenPower=null;lastDamageSource=null;firingZombie=null;campSamples=[];campSampleTimer=0;campPressure=0;Spawner.resetSession();resetEncounterRotation();
     runInfo={startRound,difficulty:selectedDifficulty,advanced:startRound>1,startedAt:Date.now()};
     uiStartScreen.classList.add('hidden');document.getElementById('loadout-screen').classList.add('hidden');uiRecoveryScreen.classList.add('hidden');uiGameOverScreen.classList.add('hidden');uiPauseScreen.classList.add('hidden');uiHUD.classList.remove('hidden');
-    configureRound(startRound);gameState='PLAYING';markSessionActive();saveProgress(startRound>1?'advanced-start':'new-game');lastTime=performance.now();musicDuck=1;startMusic();startTutorial();
+    configureRound(startRound);gameState='PLAYING';markSessionActive();saveProgress(startRound>1?'advanced-start':'new-game');lastTime=performance.now();musicDuck=1;startMusic();startTutorial();Platform.gameplayStart();
 }
 function initGame(){if(selectedStartRound>1)prepareAdvancedStart();else beginRun(1);}
 
@@ -602,14 +602,14 @@ function initGame(){if(selectedStartRound>1)prepareAdvancedStart();else beginRun
 // silent = el jugador no está mirando: la música se corta del todo en vez de atenuarse.
 function pauseGame({silent=false}={}){
     if(gameState!=='PLAYING')return false;
-    Input.reset();gameState='PAUSED';uiPauseScreen.classList.remove('hidden');
+    Input.reset();gameState='PAUSED';uiPauseScreen.classList.remove('hidden');Platform.gameplayStop();
     if(silent)stopMusic();else musicDuck=.35;
     return true;
 }
 window.addEventListener('pause_toggle',()=>{if(gameState==='PLAYING')pauseGame();else if(gameState==='PAUSED')resumeFromPause();});
-function resumeFromPause(){Input.pressed.clear();gameState='PLAYING';uiPauseScreen.classList.add('hidden');lastTime=performance.now();musicDuck=1;startMusic();}
+function resumeFromPause(){Input.pressed.clear();gameState='PLAYING';uiPauseScreen.classList.add('hidden');lastTime=performance.now();musicDuck=1;startMusic();Platform.gameplayStart();}
 document.getElementById('btn-resume').addEventListener('click',resumeFromPause);
-document.getElementById('btn-quit').addEventListener('click',()=>{saveProgress('quit');stopMusic();musicDuck=1;gameState='START';uiPauseScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();refreshMenuStats();checkRecovery();});
+document.getElementById('btn-quit').addEventListener('click',()=>{saveProgress('quit');stopMusic();musicDuck=1;Platform.gameplayStop();gameState='START';uiPauseScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();refreshMenuStats();checkRecovery();});
 
 window.addEventListener('earthquake',e=>{
     if(gameState!=='PLAYING')return;const d=e.detail;playSound('earthquake');shakeTime=300;shakeMagnitude=10;
@@ -639,7 +639,7 @@ function updateRound(dt){
     }
 }
 function endRound(){
-    roundEnded=true;Input.reset();if(player.isDashing)player.finishDash(false);gameState='UPGRADING';updateAdaptiveDifficulty();restoreStolenPower();player.noJump=false;saveBestiary();
+    roundEnded=true;Input.reset();if(player.isDashing)player.finishDash(false);gameState='UPGRADING';Platform.gameplayStop();updateAdaptiveDifficulty();restoreStolenPower();player.noJump=false;saveBestiary();
     for(const p of enemyProjectiles)p.active=false;enemyProjectiles=[];obstacles=[];Spawner.reset();
     for(const z of zombies)z.active=false;zombies=[];
     updateRecords(true);saveProgress('round-complete');showUpgrades();
@@ -814,19 +814,19 @@ function startCountdown(callback){
 }
 
 function finite(v,fallback,min=-Infinity,max=Infinity){return Number.isFinite(Number(v))?clamp(Number(v),min,max):fallback;}
-function loadJSON(key){try{const raw=localStorage.getItem(key);return raw?JSON.parse(raw):null;}catch{return null;}}
-function loadRecords(){const d=loadJSON(RECORD_KEY)||{};return{highScore:finite(d.highScore,finite(localStorage.getItem('deadboxHighScore')||localStorage.getItem('arenaHighScore'),0,0),0),highRound:finite(d.highRound,finite(localStorage.getItem('deadboxHighScoreRound')||localStorage.getItem('arenaHighScoreRound'),1,1),1),highKills:finite(d.highKills,0,0),bestCombo:finite(d.bestCombo,0,0),soundEnabled:d.soundEnabled!==false,byMode:d.byMode&&typeof d.byMode==='object'?d.byMode:{}};}
+function loadJSON(key){try{const raw=Storage.getItem(key);return raw?JSON.parse(raw):null;}catch{return null;}}
+function loadRecords(){const d=loadJSON(RECORD_KEY)||{};return{highScore:finite(d.highScore,finite(Storage.getItem('deadboxHighScore')||Storage.getItem('arenaHighScore'),0,0),0),highRound:finite(d.highRound,finite(Storage.getItem('deadboxHighScoreRound')||Storage.getItem('arenaHighScoreRound'),1,1),1),highKills:finite(d.highKills,0,0),bestCombo:finite(d.bestCombo,0,0),soundEnabled:d.soundEnabled!==false,byMode:d.byMode&&typeof d.byMode==='object'?d.byMode:{}};}
 function updateRecords(force=false){
     const before=JSON.stringify(records),mode=runInfo.advanced?`advanced-r${runInfo.startRound}`:'standard',key=`${mode}-${runInfo.difficulty}`,entry=records.byMode[key]||{highScore:0,highRound:runInfo.startRound,highKills:0,bestCombo:0,bestTime:0};entry.highScore=Math.max(entry.highScore,Math.floor(score));entry.highRound=Math.max(entry.highRound,currentRound);entry.highKills=Math.max(entry.highKills,kills);entry.bestCombo=Math.max(entry.bestCombo,bestCombo);entry.bestTime=Math.max(entry.bestTime,Date.now()-runInfo.startedAt);records.byMode[key]=entry;if(!runInfo.advanced){records.highScore=Math.max(records.highScore,Math.floor(score));records.highRound=Math.max(records.highRound,currentRound);records.highKills=Math.max(records.highKills,kills);records.bestCombo=Math.max(records.bestCombo,bestCombo);}unlockStartingRounds(currentRound);records.soundEnabled=soundEnabled;
-    if(force||JSON.stringify(records)!==before){localStorage.setItem(RECORD_KEY,JSON.stringify(records));localStorage.setItem('deadboxHighScore',String(records.highScore));localStorage.setItem('deadboxHighScoreRound',String(records.highRound));refreshMenuStats();}
+    if(force||JSON.stringify(records)!==before){Storage.setItem(RECORD_KEY,JSON.stringify(records));Storage.setItem('deadboxHighScore',String(records.highScore));Storage.setItem('deadboxHighScoreRound',String(records.highRound));refreshMenuStats();}
 }
 function saveProgress(reason='auto'){
     if(!player)return;updateRecords(false);const data={version:3,reason,savedAt:Date.now(),sessionActive:gameState!=='GAME_OVER',lastCompletedRound:roundEnded?currentRound:Math.max(0,currentRound-1),round:currentRound,score,kills,bestCombo,health:player.health,maxHealth:player.maxHealth,weaponLevel:player.weaponLevel,bonusDamage:player.bonusDamage,fireRate:player.fireRate,speed:player.speed,jumpCooldown:player.jumpCooldown,projectileSize:player.projectileSize,damageReduction:player.damageReduction,shieldHits:player.shieldHits,dashDistance:player.dashDistance,dashSpeed:player.dashSpeed,dashCooldown:player.dashCooldown,dashInvulnerability:player.dashInvulnerability,maxDashCharges:player.maxDashCharges,shockDash:player.shockDash,trailBurn:player.trailBurn,perks:{...player.perks},adaptivePressure,roundsWithoutDamage,records,runInfo,difficulty:selectedDifficulty,startRound:runInfo.startRound};
-    try{const previous=localStorage.getItem(SAVE_KEY);if(previous){const parsed=JSON.parse(previous);if(parsed&&[2,3].includes(parsed.version))localStorage.setItem(BACKUP_KEY,previous);}localStorage.setItem(SAVE_KEY,JSON.stringify(data));}catch(e){console.warn('Guardado omitido',e);}
+    try{const previous=Storage.getItem(SAVE_KEY);if(previous){const parsed=JSON.parse(previous);if(parsed&&[2,3].includes(parsed.version))Storage.setItem(BACKUP_KEY,previous);}Storage.setItem(SAVE_KEY,JSON.stringify(data));}catch(e){console.warn('Guardado omitido',e);}
 }
 function validSave(d){return d&&[2,3].includes(d.version)&&Number.isFinite(Number(d.savedAt))&&Number.isFinite(Number(d.round))&&Number(d.round)>=1;}
 function getSafeSave(){const primary=loadJSON(SAVE_KEY);if(validSave(primary))return primary;const backup=loadJSON(BACKUP_KEY);return validSave(backup)?backup:null;}
-function markSessionActive(){try{const d=getSafeSave();if(d){d.sessionActive=true;localStorage.setItem(SAVE_KEY,JSON.stringify(d));}}catch{}}
+function markSessionActive(){try{const d=getSafeSave();if(d){d.sessionActive=true;Storage.setItem(SAVE_KEY,JSON.stringify(d));}}catch{}}
 function checkRecovery(){
     const d=getSafeSave(),active=!!(d&&d.sessionActive);
     document.getElementById('btn-continue').classList.toggle('hidden',!active);
@@ -850,12 +850,22 @@ function deathCauseText(){
     if(source?.kind==='enemy')return t('gameOver.killedBy',{name:t('death.enemyFire')});
     return t('gameOver.killedByUnknown');
 }
+// El portal exige silenciar el audio y detener el juego mientras se muestra el anuncio, y
+// devolverlo al terminar o al fallar. Si no hay anuncio disponible el fallo llega igual, así que
+// esto nunca deja la partida colgada.
+function showMidgameAd(){
+    Platform.requestAd('midgame',{
+        adStarted:()=>{stopMusic();try{audioCtx?.suspend?.();}catch{}},
+        adFinished:()=>{try{audioCtx?.resume?.();}catch{}},
+        adError:()=>{try{audioCtx?.resume?.();}catch{}}
+    });
+}
 function gameOver(){
-    Input.reset();stopMusic();if(player?.isDashing)player.finishDash(false);gameState='GAME_OVER';
+    Input.reset();stopMusic();Platform.gameplayStop();if(player?.isDashing)player.finishDash(false);gameState='GAME_OVER';
     // El récord se lee antes de actualizarlo: si no, la partida siempre parecería empatar consigo misma.
     const previousBest=records.highScore,finalScore=Math.floor(score);
     updateRecords(true);saveProgress('game-over');
-    const d=getSafeSave();if(d){d.sessionActive=false;localStorage.setItem(SAVE_KEY,JSON.stringify(d));}
+    const d=getSafeSave();if(d){d.sessionActive=false;Storage.setItem(SAVE_KEY,JSON.stringify(d));}
     uiHUD.classList.add('hidden');uiGameOverScreen.classList.remove('hidden');
     const earned=awardScrap(scrapForRun(score,Math.max(0,currentRound-(runInfo?.startRound||1))));
     document.getElementById('death-cause').textContent=deathCauseText();
@@ -866,6 +876,7 @@ function gameOver(){
     chase.classList.toggle('is-best',beatenRecord);
     const rows=[[t('gameOver.roundLabel'),currentRound],[t('gameOver.killsLabel'),kills],[t('gameOver.comboLabel'),`×${(1+Math.min(bestCombo,COMBO_CAP)*COMBO_STEP).toFixed(1)}`],[t('gameOver.scrapLabel'),`+${earned}`]];
     document.getElementById('death-stats').innerHTML=rows.map(([label,value])=>`<div><dt>${label}</dt><dd>${value}</dd></div>`).join('');
+    showMidgameAd();
 }
 
 function showNotification(text){const el=document.getElementById('notifications');el.textContent=text;el.style.opacity=1;setTimeout(()=>el.style.opacity=0,1800);}
@@ -928,6 +939,29 @@ function updateTutorial(dt){
     }
 }
 function runScrapSoFar(){return scrapForRun(score,Math.max(0,currentRound-(runInfo?.startRound||1)));}
+// El SDK se inicializa de forma asíncrona, pero el estado guardado se lee al cargar los scripts.
+// Si el módulo de datos entra después, se relee todo y se refresca el menú. Sólo fuera de partida:
+// cambiar los datos a media ronda sería peor que esperar.
+function onPlatformStorageReady(){
+    if(gameState!=='START')return;
+    try{
+        gameMeta=readMeta();
+        gameMeta.selectedDifficulty=DIFFICULTY_VALUES.includes(Number(gameMeta.selectedDifficulty))?Number(gameMeta.selectedDifficulty):100;
+        gameMeta.selectedStartRound=START_ROUNDS.includes(Number(gameMeta.selectedStartRound))?Number(gameMeta.selectedStartRound):1;
+        gameMeta.unlockedStartRound=Math.max(1,Number(gameMeta.unlockedStartRound)||1);
+        gameMeta.recentBosses=Array.isArray(gameMeta.recentBosses)?gameMeta.recentBosses.slice(-5):[];
+        gameMeta.recentMinibosses=Array.isArray(gameMeta.recentMinibosses)?gameMeta.recentMinibosses.slice(-5):[];
+        gameMeta.recordsByMode=gameMeta.recordsByMode&&typeof gameMeta.recordsByMode==='object'?gameMeta.recordsByMode:{};
+        normalizeCosmetics(gameMeta);
+        setSelectedDifficulty(gameMeta.selectedDifficulty);
+        setSelectedStartRound(gameMeta.selectedStartRound);
+        records=loadRecords();options=loadOptions();bestiaryState=loadBestiary();
+        soundEnabled=records.soundEnabled;
+        const savedLanguage=Storage.getItem(LANGUAGE_KEY);
+        if(savedLanguage&&savedLanguage!==currentLanguage)setLanguage(savedLanguage);
+        syncOptionsUI();setupRunSelectors();refreshMenuStats();checkRecovery();
+    }catch(e){console.warn('Cloud save reload skipped',e);}
+}
 function refreshMenuStats(){
     document.getElementById('high-score-display').textContent=t('records.bestValue',{score:records.highScore,round:records.highRound});
     document.getElementById('scrap-display').textContent=gameMeta.scrap;
@@ -1106,3 +1140,5 @@ window.addEventListener('language_changed',()=>{refreshMenuStats();setupRunSelec
 setLanguage(currentLanguage);setupRunSelectors();checkRecovery();
 for(const id of['starting-round','difficulty-select','language-main','language-pause','language-options','bestiary-status','bestiary-category'])enhanceSelect(document.getElementById(id));
 requestAnimationFrame(gameLoop);
+// El menú ya está montado y jugable: la carga ha terminado.
+Platform.ready.then(()=>Platform.loadingStop());
