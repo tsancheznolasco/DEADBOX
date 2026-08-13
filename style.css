@@ -39,7 +39,10 @@
     margin: 0;
     padding: 0;
     font-family: 'Outfit', sans-serif;
+    /* Safari en iOS necesita el prefijo, y sin él el arrastre del joystick selecciona la interfaz. */
+    -webkit-user-select: none;
     user-select: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 body {

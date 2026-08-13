@@ -962,6 +962,15 @@ function onPlatformStorageReady(){
         syncOptionsUI();setupRunSelectors();refreshMenuStats();checkRecovery();
     }catch(e){console.warn('Cloud save reload skipped',e);}
 }
+// En un móvil el menú pedía WASD y Esc, teclas que ese jugador no tiene. Se elige la línea por el
+// tipo de puntero al cargar y se corrige en cuanto se toca la pantalla o se mueve un ratón.
+function refreshControlsHint(){
+    const line=document.querySelector('.controls-line');
+    if(!line)return;
+    const coarse=typeof window.matchMedia==='function'&&window.matchMedia('(pointer: coarse)').matches;
+    line.textContent=t(Input.touchActive||coarse?'menu.controlsTouch':'menu.controls');
+}
+window.addEventListener('input_mode_changed',refreshControlsHint);
 function refreshMenuStats(){
     document.getElementById('high-score-display').textContent=t('records.bestValue',{score:records.highScore,round:records.highRound});
     document.getElementById('scrap-display').textContent=gameMeta.scrap;
@@ -1153,7 +1162,7 @@ function setupRunSelectors(){
 function renderRunSetup(){document.getElementById('difficulty-description').textContent=t(difficultyDescriptionKey());// Sólo los valores derivados: la ronda y la dificultad ya se leen en sus propios selectores.
 document.getElementById('start-summary').innerHTML=`<span>${t('setup.loadout')}</span><strong>${selectedStartRound>1?t('setup.generated'):t('setup.standard')}</strong><span>${t('setup.eligibility')}</span><strong>${selectedStartRound>1?t('setup.advanced'):t('setup.standard')}</strong>`;}
 
-soundEnabled=records.soundEnabled;refreshMenuStats();
+soundEnabled=records.soundEnabled;refreshMenuStats();refreshControlsHint();
 document.getElementById('btn-start').addEventListener('click',initGame);document.getElementById('btn-continue').addEventListener('click',recoverGame);document.getElementById('btn-restart').addEventListener('click',initGame);
 document.getElementById('btn-gameover-menu').addEventListener('click',()=>{gameState='START';uiGameOverScreen.classList.add('hidden');uiHUD.classList.add('hidden');uiStartScreen.classList.remove('hidden');setupRunSelectors();refreshMenuStats();checkRecovery();});document.getElementById('btn-recover').addEventListener('click',recoverGame);document.getElementById('btn-newgame').addEventListener('click',initGame);
 document.getElementById('difficulty-select').addEventListener('change',e=>{setSelectedDifficulty(Number(e.target.value));renderRunSetup();});document.getElementById('starting-round').addEventListener('change',e=>{setSelectedStartRound(Number(e.target.value));renderRunSetup();});
@@ -1165,7 +1174,7 @@ document.getElementById('btn-options').addEventListener('click',()=>openOptions(
 bindOption('opt-master','master','input','effects');bindOption('opt-music','music','input','music');bindOption('opt-effects','effects','input','effects');bindOption('opt-shake','screenShake','change');bindOption('opt-damage-numbers','damageNumbers','change');bindOption('opt-reduced-effects','reducedEffects','change');
 document.getElementById('btn-fullscreen').addEventListener('click',()=>{if(!document.fullscreenElement)document.documentElement.requestFullscreen?.();else document.exitFullscreen?.();});
 for(const id of['language-main','language-pause','language-options'])document.getElementById(id).addEventListener('change',e=>setLanguage(e.target.value));
-window.addEventListener('language_changed',()=>{refreshMenuStats();setupRunSelectors();checkRecovery();if(preparedLoadout)renderLoadoutSummary();if(!uiBestiaryScreen.classList.contains('hidden')){setupBestiaryFilters();renderBestiary();}});
+window.addEventListener('language_changed',()=>{refreshMenuStats();refreshControlsHint();setupRunSelectors();checkRecovery();if(preparedLoadout)renderLoadoutSummary();if(!uiBestiaryScreen.classList.contains('hidden')){setupBestiaryFilters();renderBestiary();}});
 setLanguage(currentLanguage);setupRunSelectors();checkRecovery();
 for(const id of['starting-round','difficulty-select','language-main','language-pause','language-options','bestiary-status','bestiary-category'])enhanceSelect(document.getElementById(id));
 requestAnimationFrame(gameLoop);

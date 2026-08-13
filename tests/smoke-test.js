@@ -56,6 +56,7 @@ document.hidden = false;
 document.getElementById = id => { if (!elements.has(id)) elements.set(id,new FakeElement(id)); return elements.get(id); };
 document.createElement = () => new FakeElement();
 document.querySelectorAll = () => [];
+document.querySelector = sel => { if (!elements.has(sel)) elements.set(sel,new FakeElement(sel)); return elements.get(sel); };
 document.exitFullscreen = () => Promise.resolve();
 global.localStorage = {data:new Map(),getItem(k){return this.data.has(k)?this.data.get(k):null;},setItem(k,v){this.data.set(k,String(v));},removeItem(k){this.data.delete(k);}};
 global.requestAnimationFrame = () => 1;
@@ -395,9 +396,10 @@ vm.runInThisContext(`
   // Los avisos de partida deben salir en los momentos correctos, aunque el SDK real decida luego
   // qué hace con ellos. Se espía nuestra propia capa, que es lo que controlamos.
   (function(){
-    const calls=[];
-    const realCall=Platform.call.bind(Platform);
-    Platform.call=function(path,...args){calls.push(path);return realCall(path,...args);};
+    // Qué pretende el juego, independientemente de cuándo lo entregue la capa.
+    const intents=[];
+    const realSet=Platform.setGameplay.bind(Platform);
+    Platform.setGameplay=function(active){intents.push(!!active);return realSet(active);};
     gameState='START';
     beginRun(1);
     pauseGame();
@@ -405,10 +407,27 @@ vm.runInThisContext(`
     endRound();
     gameState='PLAYING'; player.health=0;
     for(let i=0;i<5&&gameState==='PLAYING';i++)update(16,performance.now()+i*16);
+    Platform.setGameplay=realSet;
+    const expected=[true,false,true,false,false];
+    if(intents.join(',')!==expected.join(','))throw new Error('Secuencia de avisos de partida incorrecta: '+intents.join(','));
+  })();
+
+  // El SDK descarta avisos a menos de un segundo, así que aquí se agrupan sin perder el último.
+  (function(){
+    const calls=[];
+    const realCall=Platform.call.bind(Platform);
+    Platform.call=function(path,...args){if(path.startsWith('game.gameplay'))calls.push(path.endsWith('Start')?'START':'STOP');return realCall(path,...args);};
+    Platform.gameplayState=null;Platform.pendingGameplay=null;Platform.lastGameplayAt=0;clearTimeout(Platform.gameplayTimer);
+    Platform.gameplayStart();                       // se envía ya
+    if(calls.join()!=='START')throw new Error('El primer aviso debería salir de inmediato');
+    Platform.gameplayStart();Platform.gameplayStart();
+    if(calls.join()!=='START')throw new Error('Los avisos repetidos deben ignorarse');
+    Platform.gameplayStop();                        // llega antes de un segundo: se aplaza
+    if(calls.join()!=='START')throw new Error('Un aviso demasiado seguido no debe enviarse aún');
+    Platform.flushGameplay();
+    if(calls.join()!=='START,STOP')throw new Error('El aviso aplazado debe acabar entregándose');
+    Platform.gameplayState=null;Platform.pendingGameplay=null;Platform.lastGameplayAt=0;
     Platform.call=realCall;
-    const lifecycle=calls.filter(c=>c.startsWith('game.gameplay'));
-    const expected=['game.gameplayStart','game.gameplayStop','game.gameplayStart','game.gameplayStop','game.gameplayStop'];
-    if(lifecycle.join(',')!==expected.join(','))throw new Error('Secuencia de avisos de partida incorrecta: '+lifecycle.join(','));
   })();
 
   // Estallidos dirigidos y sacudida sólo en jefes.

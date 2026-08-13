@@ -38,8 +38,41 @@ const Platform = {
 
     loadingStart(){ this.call('game.loadingStart'); },
     loadingStop(){ this.call('game.loadingStop'); },
-    gameplayStart(){ this.call('game.gameplayStart'); },
-    gameplayStop(){ this.call('game.gameplayStop'); },
+
+    // El SDK limita estos avisos a uno por segundo y descarta los de más, así que morir justo al
+    // empezar una ronda o darle rápido a la pausa podía perder un "stop" y dejarles creyendo que
+    // la partida sigue. Se ignora lo repetido y lo demasiado seguido se aplaza, nunca se pierde.
+    gameplayState: null,
+    pendingGameplay: null,
+    gameplayTimer: null,
+    lastGameplayAt: 0,
+    setGameplay(active){
+        const target = !!active;
+        if (this.pendingGameplay === null ? this.gameplayState === target : this.pendingGameplay === target) return;
+        const wait = Math.max(0, 1000 - (Date.now() - this.lastGameplayAt));
+        if (wait === 0) { this.sendGameplay(target); return; }
+        this.pendingGameplay = target;
+        clearTimeout(this.gameplayTimer);
+        this.gameplayTimer = setTimeout(() => {
+            const next = this.pendingGameplay;
+            this.pendingGameplay = null;
+            if (next !== null && next !== this.gameplayState) this.sendGameplay(next);
+        }, wait);
+    },
+    // Aplica ya lo que estuviera esperando. Lo usan las pruebas y el cierre de la página.
+    flushGameplay(){
+        clearTimeout(this.gameplayTimer);
+        const next = this.pendingGameplay;
+        this.pendingGameplay = null;
+        if (next !== null && next !== this.gameplayState) this.sendGameplay(next);
+    },
+    sendGameplay(active){
+        this.gameplayState = active;
+        this.lastGameplayAt = Date.now();
+        this.call(active ? 'game.gameplayStart' : 'game.gameplayStop');
+    },
+    gameplayStart(){ this.setGameplay(true); },
+    gameplayStop(){ this.setGameplay(false); },
 
     // Si no hay anuncio disponible se avisa por adError igualmente: quien lo pide deja el juego
     // en pausa esperando una respuesta y sin esto se quedaría colgado.

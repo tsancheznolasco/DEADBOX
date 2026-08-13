@@ -46,6 +46,7 @@ const Input = {
         if (this.touchActive === on) return;
         this.touchActive = on;
         document.body?.classList?.toggle('touch-mode', on);
+        window.dispatchEvent(new Event('input_mode_changed'));
     },
 
     // Cada joystick es flotante: nace donde cae el pulgar, más cómodo que uno fijo. Los dos
