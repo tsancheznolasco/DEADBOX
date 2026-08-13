@@ -1,6 +1,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const projectRoot = path.resolve(__dirname, '..');
 const requestedRoot = process.argv[2] || '.';
@@ -62,7 +63,17 @@ server.on('error', error => {
   process.exit(1);
 });
 
-server.listen(port, '127.0.0.1', () => {
-  console.log(`DEADBOX available at http://127.0.0.1:${port}`);
+// Con HOST=0.0.0.0 el servidor acepta conexiones de la red local, que es como se prueba el
+// control táctil en un móvil. Por defecto sigue siendo sólo local.
+const host = process.env.HOST || '127.0.0.1';
+server.listen(port, host, () => {
+  console.log(`DEADBOX available at http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}`);
+  if (host === '0.0.0.0') {
+    for (const [name, addresses] of Object.entries(os.networkInterfaces())) {
+      for (const address of addresses || []) {
+        if (address.family === 'IPv4' && !address.internal) console.log(`On this network (${name}): http://${address.address}:${port}`);
+      }
+    }
+  }
   console.log(`Serving: ${root}`);
 });
