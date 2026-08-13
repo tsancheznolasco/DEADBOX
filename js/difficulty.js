@@ -39,8 +39,9 @@ function setSelectedDifficulty(value){selectedDifficulty=DIFFICULTY_VALUES.inclu
 function setSelectedStartRound(value){const wanted=START_ROUNDS.includes(Number(value))?Number(value):1;selectedStartRound=Math.min(wanted,gameMeta.unlockedStartRound);gameMeta.selectedStartRound=selectedStartRound;saveMeta();}
 function difficultyDescriptionKey(){return selectedDifficulty<100?'setup.descriptionLow':selectedDifficulty===100?'setup.descriptionStandard':selectedDifficulty<375?'setup.descriptionHigh':'setup.descriptionExtreme';}
 function getEncounterLimits(round){
-    const stage=round<6?0:round<11?1:round<16?2:3,ease=selectedDifficulty<100?lerp(.68,1,(selectedDifficulty-1)/99):1;
-    return{activeEnemies:Math.round([18,22,26,32][stage]*ease)+(selectedDifficulty>=375?2:0),enemyProjectiles:Math.round([22,28,34,42][stage]*(difficultyProfile.value<100 ? .8 : difficultyProfile.value>=375 ? 1.12 : 1)),hazards:Math.max(2,Math.round([3,4,5,7][stage]*ease)),supports:stage<2?1:2,complexity:Math.round([24,34,46,62][stage]*ease)+Math.round(Math.min(12,Math.max(0,selectedDifficulty-100)/35))};
+    // Los límites se quedaban fijos desde la ronda 16, así que la presión dejaba de crecer.
+    const stage=round<6?0:round<11?1:round<16?2:round<26?3:round<36?4:5,ease=selectedDifficulty<100?lerp(.68,1,(selectedDifficulty-1)/99):1;
+    return{activeEnemies:Math.round([18,22,26,32,38,44][stage]*ease)+(selectedDifficulty>=375?2:0),enemyProjectiles:Math.round([22,28,34,42,48,54][stage]*(difficultyProfile.value<100 ? .8 : difficultyProfile.value>=375 ? 1.12 : 1)),hazards:Math.max(2,Math.round([3,4,5,7,8,9][stage]*ease)),supports:stage<2?1:2,complexity:Math.round([24,34,46,62,74,86][stage]*ease)+Math.round(Math.min(12,Math.max(0,selectedDifficulty-100)/35))};
 }
 function complexityOf(type,elite=false){return(COMPLEXITY_COST[type]||3)+(elite?2:0);}
 

@@ -257,7 +257,20 @@ function spawnFood(x,y,type=null,source='normal'){
     const f=foodPool.get();if(!f)return;foods.push(f.init(clamp(x,45,arena.width-45),clamp(y,45,arena.height-45),type));
 }
 
-function resize(){canvas.width=window.innerWidth;canvas.height=window.innerHeight;}
+// El lienzo se dibujaba a 1x y el navegador lo estiraba en pantallas de densidad doble, así que
+// todo salía borroso y el movimiento parecía arrastrarse. Se dibuja a la densidad real y se
+// mantiene el sistema de coordenadas en píxeles CSS para no tocar cámara, HUD ni colisiones.
+let viewWidth = window.innerWidth, viewHeight = window.innerHeight;
+function resize(){
+    const density=Math.min(window.devicePixelRatio||1,2);
+    viewWidth=window.innerWidth;viewHeight=window.innerHeight;
+    canvas.width=Math.round(viewWidth*density);
+    canvas.height=Math.round(viewHeight*density);
+    canvas.style.width=`${viewWidth}px`;
+    canvas.style.height=`${viewHeight}px`;
+    canvas.logicalWidth=viewWidth;canvas.logicalHeight=viewHeight;
+    ctx.setTransform(density,0,0,density,0,0);
+}
 window.addEventListener('resize',resize);resize();Input.init();
 
 function ensureAudio(){try{if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();audioCtx.resume?.();}catch(e){console.warn('Audio skipped',e);}return audioCtx;}
@@ -594,7 +607,7 @@ window.addEventListener('earthquake',e=>{
 window.addEventListener('zombie_explosion_warning',e=>{if(gameState!=='PLAYING')return;const d=e.detail,delay=650*difficultyProfile.telegraph;createHazard('fire',d.x,d.y,{radius:d.radius,warning:650,duration:1800,damage:currentRound>=8?d.damage*.45:0});setTimeout(()=>{if(gameState!=='PLAYING')return;addRing(d.x,d.y,d.radius,'#ef4444');for(const z of zombies){if(z.active&&distance(z.x,z.y,d.x,d.y)<=d.radius){const died=z.takeDamage(d.damage);if(died)handleEnemyDeath(z);}}for(let i=0;i<14;i++)spawnParticle(d.x,d.y,'#f97316',8,4);},delay);});
 function addRing(x,y,maxRadius,color){if(earthquakeRings.length>=ENTITY_LIMITS.rings)earthquakeRings.shift();earthquakeRings.push({x,y,radius:0,maxRadius,opacity:1,color});}
 
-function updateCamera(){camera.x=arena.width<=canvas.width?(arena.width-canvas.width)/2:clamp(player.x-canvas.width/2,0,arena.width-canvas.width);camera.y=arena.height<=canvas.height?(arena.height-canvas.height)/2:clamp(player.y-canvas.height/2,0,arena.height-canvas.height);if(options.screenShake&&shakeTime>0){camera.x+=(Math.random()-.5)*shakeMagnitude;camera.y+=(Math.random()-.5)*shakeMagnitude;}}
+function updateCamera(){camera.x=arena.width<=viewWidth?(arena.width-viewWidth)/2:clamp(player.x-viewWidth/2,0,arena.width-viewWidth);camera.y=arena.height<=viewHeight?(arena.height-viewHeight)/2:clamp(player.y-viewHeight/2,0,arena.height-viewHeight);if(options.screenShake&&shakeTime>0){camera.x+=(Math.random()-.5)*shakeMagnitude;camera.y+=(Math.random()-.5)*shakeMagnitude;}}
 
 function updateRound(dt){
     roundTimeLeft-=dt/1000;spawnTimer-=dt;const progress=clamp(1-roundTimeLeft/roundDuration,0,1);
@@ -717,7 +730,7 @@ function update(dt,time){
 
 function drawArena(){ctx.fillStyle=arena.color;ctx.fillRect(0,0,arena.width,arena.height);ctx.strokeStyle=arena.gridColor;ctx.lineWidth=1;for(let x=0;x<arena.width;x+=100){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,arena.height);ctx.stroke();}for(let y=0;y<arena.height;y+=100){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(arena.width,y);ctx.stroke();}ctx.strokeStyle=arena.wallColor;ctx.lineWidth=20;ctx.strokeRect(0,0,arena.width,arena.height);}
 function drawVisibilityMask(){if(!hasModifier('Oscuridad')&&!hasModifier('Niebla')&&!document.body.classList.contains('round-darkness'))return;const dark=hasModifier('Oscuridad')||document.body.classList.contains('round-darkness'),inner=dark?170:300,outer=dark?520:720,g=ctx.createRadialGradient(player.x,player.y,inner,player.x,player.y,outer);g.addColorStop(0,'rgba(2,6,23,0)');g.addColorStop(1,dark?'rgba(2,6,23,.82)':'rgba(148,163,184,.56)');ctx.fillStyle=g;ctx.fillRect(0,0,arena.width,arena.height);}
-function draw(){ctx.fillStyle='#000';ctx.fillRect(0,0,canvas.width,canvas.height);if(!player||!['PLAYING','UPGRADING','COUNTDOWN','PAUSED','GAME_OVER'].includes(gameState))return;ctx.save();ctx.translate(-camera.x,-camera.y);drawArena();drawObstacles();drawVisibilityMask();Spawner.draw(ctx);for(const trail of dashTrails){ctx.save();ctx.globalAlpha=clamp(trail.life/trail.maxLife,0,.72);ctx.strokeStyle=trail.color;ctx.lineWidth=trail.damage?22:9;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(trail.from.x,trail.from.y);ctx.lineTo(trail.to.x,trail.to.y);ctx.stroke();ctx.restore();}for(const r of earthquakeRings){ctx.globalAlpha=r.opacity;ctx.strokeStyle=r.color||'#fbbf24';ctx.lineWidth=5;ctx.beginPath();ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}for(const f of foods)f.draw(ctx);for(const p of superPickups)p.draw(ctx);for(const p of particles)p.draw(ctx);for(const p of projectiles)p.draw(ctx);for(const p of enemyProjectiles)p.draw(ctx);for(const z of zombies){ctx.save();if(hasModifier('Niebla')){const d=distance(z.x,z.y,player.x,player.y);ctx.globalAlpha=d>600 ? .35 : d>420 ? .62 : 1;}z.draw(ctx);ctx.restore();}if(player.hasPower('gravityWell')){ctx.save();ctx.strokeStyle='rgba(129,140,248,.34)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x,player.y,210+Math.sin(Date.now()/120)*8,0,Math.PI*2);ctx.stroke();ctx.restore();}player.draw(ctx);if(options.damageNumbers){ctx.font='600 13px system-ui';ctx.textAlign='center';ctx.fillStyle='#e2e8f0';for(const n of damageNumbers){ctx.globalAlpha=clamp(n.life/300,0,1);ctx.fillText(n.value,n.x,n.y);}ctx.globalAlpha=1;}ctx.restore();}
+function draw(){ctx.fillStyle='#000';ctx.fillRect(0,0,viewWidth,viewHeight);if(!player||!['PLAYING','UPGRADING','COUNTDOWN','PAUSED','GAME_OVER'].includes(gameState))return;ctx.save();ctx.translate(-camera.x,-camera.y);drawArena();drawObstacles();drawVisibilityMask();Spawner.draw(ctx);for(const trail of dashTrails){ctx.save();ctx.globalAlpha=clamp(trail.life/trail.maxLife,0,.72);ctx.strokeStyle=trail.color;ctx.lineWidth=trail.damage?22:9;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(trail.from.x,trail.from.y);ctx.lineTo(trail.to.x,trail.to.y);ctx.stroke();ctx.restore();}for(const r of earthquakeRings){ctx.globalAlpha=r.opacity;ctx.strokeStyle=r.color||'#fbbf24';ctx.lineWidth=5;ctx.beginPath();ctx.arc(r.x,r.y,r.radius,0,Math.PI*2);ctx.stroke();ctx.globalAlpha=1;}for(const f of foods)f.draw(ctx);for(const p of superPickups)p.draw(ctx);for(const p of particles)p.draw(ctx);for(const p of projectiles)p.draw(ctx);for(const p of enemyProjectiles)p.draw(ctx);for(const z of zombies){ctx.save();if(hasModifier('Niebla')){const d=distance(z.x,z.y,player.x,player.y);ctx.globalAlpha=d>600 ? .35 : d>420 ? .62 : 1;}z.draw(ctx);ctx.restore();}if(player.hasPower('gravityWell')){ctx.save();ctx.strokeStyle='rgba(129,140,248,.34)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(player.x,player.y,210+Math.sin(Date.now()/120)*8,0,Math.PI*2);ctx.stroke();ctx.restore();}player.draw(ctx);if(options.damageNumbers){ctx.font='600 13px system-ui';ctx.textAlign='center';ctx.fillStyle='#e2e8f0';for(const n of damageNumbers){ctx.globalAlpha=clamp(n.life/300,0,1);ctx.fillText(n.value,n.x,n.y);}ctx.globalAlpha=1;}ctx.restore();}
 function gameLoop(time){let dt=Math.min(80,Math.max(0,time-lastTime));lastTime=time;update(dt,time);draw();document.body.classList.toggle('in-run',gameState==='PLAYING');requestAnimationFrame(gameLoop);}
 
 const upgradePool = [

@@ -31,9 +31,13 @@ const Input = {
         window.addEventListener('mousemove', (e) => {
             const canvas=document.getElementById('gameCanvas');
             const rect=canvas?.getBoundingClientRect?.()||{left:0,top:0,width:canvas?.width||window.innerWidth,height:canvas?.height||window.innerHeight};
+            // El lienzo se dibuja en píxeles CSS aunque su búfer sea mayor en pantallas densas,
+            // así que el ratón se mapea al tamaño lógico y no al del búfer.
             const width=Math.max(1,rect.width),height=Math.max(1,rect.height);
-            this.mouse.x=(e.clientX-rect.left)*((canvas?.width||width)/width);
-            this.mouse.y=(e.clientY-rect.top)*((canvas?.height||height)/height);
+            const logicalWidth=canvas?.logicalWidth||canvas?.width||width;
+            const logicalHeight=canvas?.logicalHeight||canvas?.height||height;
+            this.mouse.x=(e.clientX-rect.left)*(logicalWidth/width);
+            this.mouse.y=(e.clientY-rect.top)*(logicalHeight/height);
         });
         this.initTouch();
     },

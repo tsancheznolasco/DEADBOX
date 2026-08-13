@@ -219,6 +219,22 @@ vm.runInThisContext(`
   if(checkRecovery())throw new Error('Tras morir no debería quedar partida en curso');
   if(startButton.textContent!==t('menu.play'))throw new Error('Sin partida en curso el botón debe decir Jugar');
 
+  // La dificultad tenía topes que se alcanzaban entre las rondas 16 y 23: a partir de ahí el juego
+  // dejaba de endurecerse. Vida, daño y presión deben seguir creciendo en rondas altas.
+  (function(){
+    const sample=round=>{ resetEntities(); currentRound=round; const z=queueDirectSpawn('normal',300,300); const out={hp:z.maxHealth,dmg:z.damage,cap:getEncounterLimits(round).activeEnemies}; z.active=false; return out; };
+    const r20=sample(20), r35=sample(35), r55=sample(55);
+    if(!(r35.hp>r20.hp&&r55.hp>r35.hp))throw new Error('La vida deja de crecer en rondas altas');
+    if(!(r35.dmg>r20.dmg&&r55.dmg>r35.dmg))throw new Error('El daño deja de crecer en rondas altas');
+    if(!(r35.cap>r20.cap))throw new Error('La presión deja de crecer en rondas altas');
+    // Pero sin convertir a los básicos en esponjas: el salto debe ser gradual.
+    if(r55.hp/r20.hp>14)throw new Error('La vida de rondas altas se disparó demasiado');
+    if(r55.dmg/r20.dmg>2.2)throw new Error('El daño de rondas altas se disparó demasiado');
+    // Y las rondas tempranas no deben endurecerse por este cambio.
+    const r10=sample(10);
+    if(r10.hp>40||r10.dmg>14)throw new Error('El cambio endureció el arranque de la partida');
+  })();
+
   // Pantalla de muerte: la causa debe salir de lo que realmente hizo el daño.
   lastDamageSource=null;
   if(deathCauseText()!==t('gameOver.killedByUnknown'))throw new Error('Sin fuente conocida no debe inventarse una causa');

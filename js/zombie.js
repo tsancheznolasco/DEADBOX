@@ -16,9 +16,11 @@ class Zombie {
         const earlyEase = difficulty <= 5 ? lerp(.5, 1, (difficulty - 1) / 4) : 1;
         // La vida seguía un tope que se alcanzaba hacia la ronda 32, así que a partir de ahí los
         // enemigos dejaban de endurecerse mientras el daño del jugador seguía creciendo sin límite.
-        this.maxHealth = this.baseHealth * (1 + Math.min(.8, difficulty * .025) + Math.max(0, difficulty - 18) * .06 + Math.pow(Math.max(0, difficulty - 25) / 10, 2) * .3) * earlyEase;
+        this.maxHealth = this.baseHealth * (1 + Math.min(.8, difficulty * .025) + Math.max(0, difficulty - 18) * .06 + Math.pow(Math.max(0, difficulty - 25) / 10, 2) * .9) * earlyEase;
         this.health = this.maxHealth;
-        this.damage = this.baseDamage * (1 + Math.min(.8, difficulty * .035));
+        // El daño también tenía tope, alcanzado hacia la ronda 23: a partir de ahí los enemigos
+        // dejaban de doler mientras la armadura del jugador seguía subiendo.
+        this.damage = this.baseDamage * (1 + Math.min(.8, difficulty * .035) + Math.max(0, difficulty - 22) * .022);
         this.color = this.baseColor;
         this.hitTimer = 0; this.stunTimer = 0; this.attackCooldown = 0;
         this.pushX = 0; this.pushY = 0; this.deadHandled = false;
