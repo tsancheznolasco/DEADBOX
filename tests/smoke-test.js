@@ -311,7 +311,31 @@ vm.runInThisContext(`
     if(list[0].price!==0)throw new Error('El aspecto por defecto de '+slot+' debe ser gratuito');
     if(list.some(i=>!i.color))throw new Error('Aspecto sin color en '+slot);
     if(!cosmeticOwned(slot,list[0].id))throw new Error('El aspecto gratuito debe poseerse desde el inicio');
+    // Sólo el aspecto por defecto puede ser gratis: los gratuitos se regalan al sanear el guardado.
+    if(list.filter(i=>i.price===0).length!==1)throw new Error('Debe haber exactamente un aspecto gratuito en '+slot);
+    // Un aspecto sin nombre saldría vacío en el taller, y uno con una forma que el dibujante no
+    // conoce se vería como un círculo cualquiera sin avisar.
+    for(const item of list){
+      for(const lang of ['en','es'])
+        if(!TRANSLATIONS[lang]?.cosmetics?.[slot]?.[item.id])throw new Error('Aspecto sin nombre: '+lang+'.'+slot+'.'+item.id);
+      if(slot==='bullet'&&!BULLET_SHAPES.includes(item.shape))throw new Error('Forma de bala desconocida: '+item.shape);
+      if(slot==='box'&&item.finish&&!BOX_FINISHES.includes(item.finish))throw new Error('Acabado de caja desconocido: '+item.finish);
+      if(slot==='gun'&&(!(item.length>0)||!(item.width>0)||!(item.barrels>=1)))throw new Error('Arma con medidas inválidas: '+item.id);
+    }
   }
+  // Cada forma y cada acabado deben dibujar algo distinto, no caer todos en el mismo trazo.
+  (function(){
+    const traced=new Map();
+    for(const shape of BULLET_SHAPES){
+      const ops=[];
+      const probe={rect:(...a)=>ops.push('rect'+a.map(Math.round)),arc:(...a)=>ops.push('arc'+a.slice(0,3).map(Math.round)),moveTo:(...a)=>ops.push('moveTo'+a.map(Math.round)),lineTo:(...a)=>ops.push('lineTo'+a.map(Math.round)),closePath:()=>ops.push('close')};
+      traceBulletShape(probe,shape,0,0,10);
+      if(!ops.length)throw new Error('La forma no dibuja nada: '+shape);
+      const signature=ops.join('|');
+      for(const [other,sig] of traced)if(sig===signature)throw new Error('Las formas '+other+' y '+shape+' dibujan lo mismo');
+      traced.set(shape,signature);
+    }
+  })();
   const paid=COSMETICS.box.find(i=>i.price>0);
   gameMeta.scrap=0;
   if(buyCosmetic('box',paid.id))throw new Error('Se compró un aspecto sin chatarra suficiente');

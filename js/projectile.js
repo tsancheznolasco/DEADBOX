@@ -47,18 +47,7 @@ class Projectile {
         } else {
             // La forma sale del aspecto equipado; los proyectiles enemigos no se ven afectados.
             const skin = typeof equippedCosmetic === 'function' ? equippedCosmetic('bullet') : null;
-            const r = this.size;
-            if (skin?.shape === 'square') {
-                ctx.rect(this.x - r, this.y - r, r * 2, r * 2);
-            } else if (skin?.shape === 'diamond') {
-                ctx.moveTo(this.x, this.y - r * 1.3);
-                ctx.lineTo(this.x + r, this.y);
-                ctx.lineTo(this.x, this.y + r * 1.3);
-                ctx.lineTo(this.x - r, this.y);
-                ctx.closePath();
-            } else {
-                ctx.arc(this.x, this.y, r, 0, Math.PI * 2);
-            }
+            traceBulletShape(ctx, skin?.shape, this.x, this.y, this.size);
         }
         ctx.fill();
         ctx.restore();

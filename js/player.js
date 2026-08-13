@@ -370,40 +370,32 @@ class Player {
 
         // Dibujar cuerpo (Caja) con el aspecto equipado
         const boxSkin = typeof equippedCosmetic === 'function' ? equippedCosmetic('box') : null;
-        const bodyColor = boxSkin?.color || '#60a5fa';
-        ctx.fillStyle = bodyColor;
-        ctx.shadowBlur = 10;
-        ctx.shadowColor = bodyColor;
-        ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
-        ctx.shadowBlur = 0;
+        drawBoxSkin(ctx, boxSkin, this.size);
+        const faceColor = boxFaceColor(boxSkin);
         
         // Dibujar Cara Feliz
         // La cara mira hacia el ratón, por lo que rotamos el contexto del cuerpo
         ctx.rotate(this.aimAngle);
         
         // Ojos
-        ctx.fillStyle = '#0f172a';
+        if (boxFaceHalo(boxSkin)) { ctx.shadowColor = 'rgba(248,250,252,.9)'; ctx.shadowBlur = 3; }
+        ctx.fillStyle = faceColor;
         ctx.fillRect(this.size/4, -this.size/4, 4, 4);
         ctx.fillRect(this.size/4, this.size/4 - 4, 4, 4);
         
         // Boca (Curva)
         ctx.beginPath();
         ctx.arc(this.size/4 + 2, 0, 8, Math.PI/4, -Math.PI/4, true);
-        ctx.strokeStyle = '#0f172a';
+        ctx.strokeStyle = faceColor;
         ctx.lineWidth = 2;
         ctx.stroke();
+        ctx.shadowBlur = 0;
 
         // Pistola giratoria
         // La dibujamos teniendo en cuenta el retroceso
         const gunSkin = typeof equippedCosmetic === 'function' ? equippedCosmetic('gun') : null;
-        ctx.fillStyle = gunSkin?.color || '#94a3b8'; // Gris arma
         const barrelLength = gunSkin?.length || 20, barrelWidth = gunSkin?.width || 8;
-        if ((gunSkin?.barrels || 1) > 1) {
-            ctx.fillRect(this.size/2 - this.recoil, -barrelWidth - 2, barrelLength, barrelWidth);
-            ctx.fillRect(this.size/2 - this.recoil, 2, barrelLength, barrelWidth);
-        } else {
-            ctx.fillRect(this.size/2 - this.recoil, -barrelWidth/2, barrelLength, barrelWidth); // Cañón
-        }
+        drawGunBarrels(ctx, gunSkin, this.size/2, this.recoil);
 
         // Fogonazo en la boca del cañón: dura lo que el retroceso, así que marca cada disparo
         // sin mover la cámara, que a esta cadencia sería insoportable.

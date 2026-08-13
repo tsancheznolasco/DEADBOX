@@ -975,6 +975,36 @@ function openWorkshop(){
     renderWorkshop();
 }
 function closeWorkshop(){uiWorkshopScreen.classList.add('hidden');uiStartScreen.classList.remove('hidden');refreshMenuStats();}
+// La muestra de la ficha enseña el diseño real: con un cuadrado de color plano, un acabado hueco
+// o a rayas y una bala en estrella parecían todos lo mismo hasta equiparlos.
+function cosmeticSwatch(slot,item){
+    const glow=`filter:drop-shadow(0 0 6px ${item.color}99)`;
+    if(slot==='gun'){
+        const bars=Array.from({length:item.barrels||1},()=>
+            `<i style="width:${Math.round((item.length||20)*1.4)}px;height:${Math.max(3,Math.round((item.width||8)*.62))}px;background:${item.color}"></i>`).join('');
+        return `<span class="cosmetic-swatch gun-swatch" style="${glow}">${bars}</span>`;
+    }
+    if(slot==='bullet'){
+        const shapes={
+            circle:'border-radius:50%',
+            square:'',
+            diamond:'clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)',
+            triangle:'clip-path:polygon(50% 0,100% 100%,0 100%)',
+            ring:`border-radius:50%;background:transparent;box-shadow:inset 0 0 0 7px ${item.color}`,
+            star:'clip-path:polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)'
+        };
+        return `<span class="cosmetic-swatch shape-swatch" style="background:${item.color};${shapes[item.shape]||''};${glow}"></span>`;
+    }
+    const accent=item.accent||'#111827';
+    const finishes={
+        solid:`background:${item.color}`,
+        outline:`background:#0b1220;box-shadow:inset 0 0 0 6px ${item.color}`,
+        split:`background:linear-gradient(90deg,${item.color} 50%,${accent} 50%)`,
+        stripe:`background:linear-gradient(180deg,${item.color} 33%,${accent} 33%,${accent} 67%,${item.color} 67%)`,
+        core:`background:${accent};background-image:linear-gradient(${item.color},${item.color});background-size:52% 52%;background-position:center;background-repeat:no-repeat`
+    };
+    return `<span class="cosmetic-swatch" style="${finishes[item.finish||'solid']};${glow}"></span>`;
+}
 function renderWorkshop(){
     document.getElementById('workshop-scrap').textContent=t('workshop.scrap',{amount:gameMeta.scrap});
     for(const tab of document.querySelectorAll('.workshop-tab'))tab.classList.toggle('active',tab.dataset.slot===workshopSlot);
@@ -984,7 +1014,7 @@ function renderWorkshop(){
         const action=equipped?t('workshop.equipped'):owned?t('workshop.equip'):gameMeta.scrap>=item.price?t('workshop.buy',{price:item.price}):t('workshop.locked',{price:item.price});
         const state=equipped?'equipped':owned?'owned':gameMeta.scrap>=item.price?'affordable':'locked';
         return `<button class="cosmetic-card ${state} ${workshopSelection[workshopSlot]===item.id?'selected':''}" data-id="${item.id}">
-            <span class="cosmetic-swatch" style="background:${item.color};box-shadow:0 0 14px ${item.color}"></span>
+            ${cosmeticSwatch(workshopSlot,item)}
             <span class="cosmetic-name">${t(`cosmetics.${workshopSlot}.${item.id}`)}</span>
             <span class="cosmetic-action">${action}</span>
         </button>`;
@@ -1004,20 +1034,19 @@ function drawWorkshopPreview(){
     c.clearRect(0,0,canvas.width,canvas.height);
     const cx=76,cy=canvas.height/2,size=54;
     c.save();c.translate(cx,cy);
-    c.fillStyle=box.color;c.shadowBlur=18;c.shadowColor=box.color;c.fillRect(-size/2,-size/2,size,size);c.shadowBlur=0;
-    c.fillStyle='#0f172a';c.fillRect(size/4,-size/4,6,6);c.fillRect(size/4,size/4-6,6,6);
-    c.beginPath();c.arc(size/4+2,0,12,Math.PI/4,-Math.PI/4,true);c.strokeStyle='#0f172a';c.lineWidth=3;c.stroke();
-    const gl=gun.length*1.5,gw=gun.width*1.5;c.fillStyle=gun.color;
-    if(gun.barrels>1){c.fillRect(size/2,-gw-3,gl,gw);c.fillRect(size/2,3,gl,gw);}
-    else c.fillRect(size/2,-gw/2,gl,gw);
+    drawBoxSkin(c,box,size);
+    const face=boxFaceColor(box);
+    c.fillStyle=face;c.fillRect(size/4,-size/4,6,6);c.fillRect(size/4,size/4-6,6,6);
+    c.beginPath();c.arc(size/4+2,0,12,Math.PI/4,-Math.PI/4,true);c.strokeStyle=face;c.lineWidth=3;c.stroke();
+    // Se dibuja con el mismo ayudante que el juego, pero a mayor escala para que se aprecie.
+    const preview={...gun,length:gun.length*1.5,width:gun.width*1.5};
+    drawGunBarrels(c,preview,size/2,0);
     c.restore();
     c.save();c.fillStyle=bullet.color;c.shadowBlur=12;c.shadowColor=bullet.color;
     for(let i=0;i<3;i++){
         const bx=cx+size/2+gun.length*1.5+22+i*30,by=cy,r=8;
         c.beginPath();
-        if(bullet.shape==='square')c.rect(bx-r,by-r,r*2,r*2);
-        else if(bullet.shape==='diamond'){c.moveTo(bx,by-r*1.3);c.lineTo(bx+r,by);c.lineTo(bx,by+r*1.3);c.lineTo(bx-r,by);c.closePath();}
-        else c.arc(bx,by,r,0,Math.PI*2);
+        traceBulletShape(c,bullet.shape,bx,by,r);
         c.fill();
     }
     c.restore();
