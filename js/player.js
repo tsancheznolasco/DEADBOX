@@ -405,6 +405,19 @@ class Player {
             ctx.fillRect(this.size/2 - this.recoil, -barrelWidth/2, barrelLength, barrelWidth); // Cañón
         }
 
+        // Fogonazo en la boca del cañón: dura lo que el retroceso, así que marca cada disparo
+        // sin mover la cámara, que a esta cadencia sería insoportable.
+        if (this.recoil > 0 && !(typeof options !== 'undefined' && options.reducedEffects)) {
+            const priorAlpha = ctx.globalAlpha;
+            const tip = this.size/2 - this.recoil + barrelLength;
+            ctx.globalAlpha = priorAlpha * Math.min(1, this.recoil / 8) * .85;
+            ctx.fillStyle = '#fff3d4';
+            ctx.beginPath();
+            ctx.ellipse(tip + 3, 0, 8, Math.max(3, barrelWidth * .55), 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = priorAlpha;
+        }
+
         ctx.restore();
         if(this.hasPower('ghost')){ctx.save();ctx.globalAlpha=.22+.12*Math.sin(Date.now()/90);ctx.strokeStyle='#c4b5fd';ctx.lineWidth=3;ctx.strokeRect(this.x-this.size*.65,this.y-this.z-this.size*.65,this.size*1.3,this.size*1.3);ctx.restore();}
         if(this.hasPower('clone')){ctx.save();ctx.globalAlpha=.42;ctx.fillStyle='#93c5fd';ctx.fillRect(this.x-34-this.size/2,this.y-this.z+24-this.size/2,this.size,this.size);ctx.restore();}

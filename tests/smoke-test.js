@@ -342,6 +342,23 @@ vm.runInThisContext(`
   if(Object.values(SFX).some(s=>s.level<=.1))throw new Error('Un efecto quedaría por debajo de la música');
   if(!(SFX_MIX>.5&&SFX_MIX<1))throw new Error('La mezcla de efectos debe bajarlos sin apagarlos');
 
+  // Estallidos dirigidos y sacudida sólo en jefes.
+  (function(){
+    const burst=new Particle().init(0,0,'#fff',6,4,1,0,.001);
+    if(burst.vx<=0||Math.abs(burst.vy)>.01)throw new Error('La partícula dirigida no sale hacia su ángulo');
+    const loose=new Particle().init(0,0,'#fff',6,4,1);
+    if(loose.vx===burst.vx&&loose.vy===burst.vy)throw new Error('Sin ángulo la partícula debería repartirse al azar');
+  })();
+  resetEntities(); player=new Player(400,400); gameState='PLAYING'; currentRound=3;
+  shakeTime=0;
+  const walker=queueDirectSpawn('normal',500,400); walker.lastHitAngle=0; walker.health=0; walker.active=false;
+  handleEnemyDeath(walker);
+  if(shakeTime!==0)throw new Error('Una baja normal no debe sacudir la cámara');
+  const deadBoss=queueDirectSpawn('boss',600,400); deadBoss.health=0; deadBoss.active=false;
+  handleEnemyDeath(deadBoss);
+  if(shakeTime<=0)throw new Error('La muerte de un jefe sí debe sacudir la cámara');
+  shakeTime=0;
+
   // Con la pestaña oculta no puede quedar música sonando: pausar sólo la atenúa.
   beginRun(1);
   if(!musicTimer)throw new Error('La música no arrancó con la partida');

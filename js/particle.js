@@ -3,11 +3,20 @@ class Particle {
         this.active = false;
     }
     
-    init(x, y, color, speed = 2, size = 3, life = 1) {
+    // Con un ángulo la partícula sale en esa dirección, para que una muerte se disperse hacia donde
+    // apuntaba el disparo. Sin ángulo mantiene el reparto aleatorio de siempre.
+    init(x, y, color, speed = 2, size = 3, life = 1, angle = null, spread = Math.PI) {
         this.x = x;
         this.y = y;
-        this.vx = (Math.random() - 0.5) * speed;
-        this.vy = (Math.random() - 0.5) * speed;
+        if (angle === null) {
+            this.vx = (Math.random() - 0.5) * speed;
+            this.vy = (Math.random() - 0.5) * speed;
+        } else {
+            const direction = angle + (Math.random() - 0.5) * spread;
+            const velocity = speed * (0.35 + Math.random() * 0.65);
+            this.vx = Math.cos(direction) * velocity;
+            this.vy = Math.sin(direction) * velocity;
+        }
         this.color = color;
         this.life = life;
         this.size = size;
