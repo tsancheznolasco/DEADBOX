@@ -31,3 +31,6 @@ Desktop.ini
 
 # Local save exports are personal unless deliberately renamed
 deadbox-save-backup.local.json
+
+# Paquete de subida: se regenera con npm run build
+deadbox-crazygames.zip
