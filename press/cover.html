@@ -297,7 +297,9 @@ function wordmark(){
   ctx.font = `600 ${Math.round(m.size*.155)}px Outfit, sans-serif`;
   ctx.letterSpacing = `${Math.round(m.size*.055)}px`;
   ctx.fillStyle = PAL.signal;
-  ctx.fillText('CONTAINMENT ARENA', x, y - m.size*.72);
+  // La altura de mayúscula de Outfit es ~.72em, así que a .72 la etiqueta quedaba pegada al techo
+  // de DEADBOX. Se sube hasta dejar un respiro claro entre las dos líneas.
+  ctx.fillText('CONTAINMENT ARENA', x, y - m.size*.95);
 
   // Marca principal.
   ctx.font = `900 ${m.size}px Outfit, sans-serif`;
