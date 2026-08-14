@@ -51,6 +51,10 @@ const Platform = {
         const target = !!active;
         this.gameplayIntent = target;
         if (this.pendingGameplay === null ? this.gameplayState === target : this.pendingGameplay === target) return;
+        // Un "stop" sin su "start" no significa nada para el portal y encima lo delata como mal
+        // integrado: aparecía Gameplay Stop detectado y Gameplay Start no. Si nunca se entregó un
+        // arranque, no hay nada que parar.
+        if (!target && this.gameplayState !== true && this.pendingGameplay !== true) return;
         const wait = Math.max(0, 1000 - (Date.now() - this.lastGameplayAt));
         if (wait === 0) { this.sendGameplay(target); return; }
         this.pendingGameplay = target;

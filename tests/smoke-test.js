@@ -441,6 +441,18 @@ vm.runInThisContext(`
     Platform.setGameplay(Platform.gameplayIntent);  // lo que hace la cadena de arranque
     if(calls.join()!=='START')throw new Error('El aviso perdido debe reenviarse al inicializar el SDK');
 
+    // Un "stop" suelto, sin arranque previo, no debe salir: es justo lo que veía el portal.
+    calls.length=0; reset();
+    Platform.gameplayStop();
+    if(calls.length!==0)throw new Error('No debe enviarse un stop sin su start');
+
+    // La secuencia que delataba el fallo: se pulsa Jugar sin SDK y la ronda acaba ya con SDK.
+    calls.length=0; reset(); Platform.usable=false;
+    Platform.gameplayStart();
+    Platform.usable=true;
+    Platform.gameplayStop(); Platform.flushGameplay();
+    if(calls.includes('STOP')&&!calls.includes('START'))throw new Error('Nunca debe detectarse un stop sin su start');
+
     reset(); Platform.usable=realUsable; Platform.call=realCall;
   })();
 
