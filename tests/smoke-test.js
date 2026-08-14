@@ -418,9 +418,12 @@ vm.runInThisContext(`
   (function(){
     const calls=[];
     const realCall=Platform.call.bind(Platform);
+    const realUsable=Platform.usable;
+    const reset=()=>{Platform.gameplayIntent=null;Platform.gameplayState=null;Platform.pendingGameplay=null;Platform.lastGameplayAt=0;clearTimeout(Platform.gameplayTimer);};
     Platform.call=function(path,...args){if(path.startsWith('game.gameplay'))calls.push(path.endsWith('Start')?'START':'STOP');return realCall(path,...args);};
-    Platform.gameplayState=null;Platform.pendingGameplay=null;Platform.lastGameplayAt=0;clearTimeout(Platform.gameplayTimer);
-    Platform.gameplayStart();                       // se envía ya
+    Platform.usable=true;                           // como si el SDK ya hubiera inicializado
+    reset();
+    Platform.gameplayStart();
     if(calls.join()!=='START')throw new Error('El primer aviso debería salir de inmediato');
     Platform.gameplayStart();Platform.gameplayStart();
     if(calls.join()!=='START')throw new Error('Los avisos repetidos deben ignorarse');
@@ -428,8 +431,17 @@ vm.runInThisContext(`
     if(calls.join()!=='START')throw new Error('Un aviso demasiado seguido no debe enviarse aún');
     Platform.flushGameplay();
     if(calls.join()!=='START,STOP')throw new Error('El aviso aplazado debe acabar entregándose');
-    Platform.gameplayState=null;Platform.pendingGameplay=null;Platform.lastGameplayAt=0;
-    Platform.call=realCall;
+
+    // Pulsar Jugar antes de que el SDK esté listo no puede perder el aviso para siempre.
+    calls.length=0; reset(); Platform.usable=false;
+    Platform.gameplayStart();
+    if(calls.length!==0)throw new Error('Sin SDK listo no debería haberse entregado nada');
+    if(Platform.gameplayIntent!==true)throw new Error('La intención del juego debe recordarse');
+    Platform.usable=true;
+    Platform.setGameplay(Platform.gameplayIntent);  // lo que hace la cadena de arranque
+    if(calls.join()!=='START')throw new Error('El aviso perdido debe reenviarse al inicializar el SDK');
+
+    reset(); Platform.usable=realUsable; Platform.call=realCall;
   })();
 
   // Estallidos dirigidos y sacudida sólo en jefes.

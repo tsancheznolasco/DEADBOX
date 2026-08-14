@@ -42,12 +42,14 @@ const Platform = {
     // El SDK limita estos avisos a uno por segundo y descarta los de más, así que morir justo al
     // empezar una ronda o darle rápido a la pausa podía perder un "stop" y dejarles creyendo que
     // la partida sigue. Se ignora lo repetido y lo demasiado seguido se aplaza, nunca se pierde.
-    gameplayState: null,
+    gameplayIntent: null,      // lo que quiere el juego
+    gameplayState: null,       // lo último que se entregó de verdad al SDK
     pendingGameplay: null,
     gameplayTimer: null,
     lastGameplayAt: 0,
     setGameplay(active){
         const target = !!active;
+        this.gameplayIntent = target;
         if (this.pendingGameplay === null ? this.gameplayState === target : this.pendingGameplay === target) return;
         const wait = Math.max(0, 1000 - (Date.now() - this.lastGameplayAt));
         if (wait === 0) { this.sendGameplay(target); return; }
@@ -67,6 +69,9 @@ const Platform = {
         if (next !== null && next !== this.gameplayState) this.sendGameplay(next);
     },
     sendGameplay(active){
+        // Antes de que init() resuelva, call() no hace nada. Si se diera por entregado, pulsar
+        // Jugar rápido perdía el primer "gameplay start" para siempre y el portal no lo detectaba.
+        if (!this.usable) { this.gameplayState = null; return; }
         this.gameplayState = active;
         this.lastGameplayAt = Date.now();
         this.call(active ? 'game.gameplayStart' : 'game.gameplayStop');
@@ -109,6 +114,8 @@ Platform.ready = (async () => {
     // Se avisa del inicio de carga aquí y no antes: hasta este punto el SDK no existía y la
     // llamada se perdía, dejando un "loadingStop" suelto sin su pareja.
     Platform.call('game.loadingStart');
+    // Si el jugador ya había empezado antes de que el SDK estuviera listo, se avisa ahora.
+    if (Platform.gameplayIntent !== null) Platform.setGameplay(Platform.gameplayIntent);
 
     // El portal exige guardar el progreso en su módulo de datos, no en localStorage.
     if (typeof sdk.data?.getItem === 'function') {
