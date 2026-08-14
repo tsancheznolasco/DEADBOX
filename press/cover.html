@@ -1,0 +1,340 @@
+<meta charset="utf-8">
+<title>DEADBOX cover generator</title>
+<style>
+  @font-face{font-family:'Outfit';src:url('../assets/fonts/Outfit-VariableFont_wght.ttf') format('truetype');font-weight:100 900;}
+  html,body{margin:0;padding:0;background:#05070a;overflow:hidden}
+  canvas{display:block}
+</style>
+<canvas id="c"></canvas>
+<script>
+// Generador de portadas para CrazyGames. Usa la misma paleta y el mismo lenguaje visual que el
+// juego (instalación de contención: chapa oscura, esquinas cortadas, acento de acero) para que la
+// ficha de la tienda y la partida se reconozcan como lo mismo.
+const PAL = {
+  bg:'#05070a', panel:'#0b0e13', line:'#1b212b', lineHot:'#2c3947',
+  text:'#e7e9ed', muted:'#79828f', accent:'#9db9c9', signal:'#7fd4d0',
+  brass:'#b6975f', box:'#60a5fa',
+  basic:'#10b981', fast:'#38bdf8', tank:'#7f1d1d', husk:'#f97316', elite:'#fbbf24'
+};
+
+const LAYOUTS = {
+  landscape:{w:1920,h:1080,player:[.63,.54],pscale:1,mark:{x:.07,y:.47,size:172,align:'left'},density:1},
+  portrait :{w:800, h:1200,player:[.5,.615],pscale:1.10,mark:{x:.5,y:.20,size:104,align:'center'},density:.95},
+  square   :{w:800, h:800, player:[.5,.44],pscale:.95,mark:{x:.5,y:.855,size:104,align:'center'},density:.82}
+};
+
+const params = new URLSearchParams(location.search);
+const L = LAYOUTS[params.get('layout') || 'landscape'];
+const W = L.w, H = L.h;
+const canvas = document.getElementById('c');
+canvas.width = W; canvas.height = H;
+const ctx = canvas.getContext('2d');
+
+// Aleatoriedad con semilla: la portada debe salir idéntica en cada render para poder afinarla.
+function rng(seed){let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+const rand = rng(20260814);
+
+function notchedPath(x,y,w,h,n){
+  ctx.beginPath();
+  ctx.moveTo(x+n,y); ctx.lineTo(x+w,y); ctx.lineTo(x+w,y+h-n);
+  ctx.lineTo(x+w-n,y+h); ctx.lineTo(x,y+h); ctx.lineTo(x,y+n); ctx.closePath();
+}
+
+function background(){
+  ctx.fillStyle = PAL.bg; ctx.fillRect(0,0,W,H);
+
+  // Suelo de la arena: rejilla técnica, tenue, que da escala sin competir con la acción.
+  const cell = Math.round(Math.min(W,H)/16);
+  ctx.strokeStyle = 'rgba(45,58,72,.35)'; ctx.lineWidth = 1;
+  for(let x=0;x<=W;x+=cell){ctx.beginPath();ctx.moveTo(x+.5,0);ctx.lineTo(x+.5,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=cell){ctx.beginPath();ctx.moveTo(0,y+.5);ctx.lineTo(W,y+.5);ctx.stroke();}
+
+  // Resplandor bajo el jugador: separa la figura del fondo y dirige la mirada.
+  const px = W*L.player[0], py = H*L.player[1];
+  const glow = ctx.createRadialGradient(px,py,0,px,py,Math.max(W,H)*.52);
+  glow.addColorStop(0,'rgba(96,165,250,.20)');
+  glow.addColorStop(.45,'rgba(40,70,110,.07)');
+  glow.addColorStop(1,'rgba(5,7,10,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0,0,W,H);
+}
+
+function vignette(){
+  const v = ctx.createRadialGradient(W/2,H*.5,Math.min(W,H)*.22,W/2,H*.5,Math.max(W,H)*.78);
+  v.addColorStop(0,'rgba(5,7,10,0)');
+  v.addColorStop(1,'rgba(5,7,10,.92)');
+  ctx.fillStyle = v; ctx.fillRect(0,0,W,H);
+}
+
+function scanlines(){
+  ctx.globalAlpha = .05; ctx.fillStyle = '#000';
+  for(let y=0;y<H;y+=3) ctx.fillRect(0,y,W,1);
+  ctx.globalAlpha = 1;
+}
+
+// Marco de contención: borde con esquina cortada, marcas de calibración y galones de peligro.
+function frame(){
+  const m = Math.round(Math.min(W,H)*.035), n = Math.round(Math.min(W,H)*.028);
+  notchedPath(m,m,W-m*2,H-m*2,n);
+  ctx.strokeStyle = 'rgba(110,132,152,.34)'; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(127,212,208,.55)'; ctx.lineWidth = 3;
+  const t = Math.round(Math.min(W,H)*.045);
+  ctx.beginPath();                                    // esquina superior derecha viva
+  ctx.moveTo(W-m-t,m); ctx.lineTo(W-m,m); ctx.lineTo(W-m,m+t); ctx.stroke();
+  ctx.beginPath();                                    // esquina inferior izquierda viva
+  ctx.moveTo(m,H-m-t); ctx.lineTo(m,H-m); ctx.lineTo(m+t,H-m); ctx.stroke();
+
+  // Ticks de calibración a lo largo del borde superior.
+  ctx.strokeStyle = 'rgba(110,132,152,.30)'; ctx.lineWidth = 2;
+  for(let i=0;i<9;i++){
+    const x = m + t*1.4 + i*(Math.min(W,H)*.028);
+    if(x > W-m-t*1.4) break;
+    ctx.beginPath(); ctx.moveTo(x,m); ctx.lineTo(x,m+(i%3===0?14:8)); ctx.stroke();
+  }
+}
+
+function hazardStripes(x,y,w,h,alpha){
+  ctx.save();
+  notchedPath(x,y,w,h,8); ctx.clip();
+  ctx.globalAlpha = alpha; ctx.strokeStyle = PAL.brass; ctx.lineWidth = 9;
+  for(let i=-h;i<w+h;i+=22){ctx.beginPath();ctx.moveTo(x+i,y+h);ctx.lineTo(x+i+h,y);ctx.stroke();}
+  ctx.restore(); ctx.globalAlpha = 1;
+}
+
+// Enemigo: cuadrado ligeramente girado, como en partida. El blanco es el destello de impacto.
+function enemy(x,y,size,color,opts={}){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(opts.rot||0);
+  // Brillo contenido: si los enemigos brillan tanto como la caja, la caja deja de ser el foco.
+  if(opts.glow){ctx.shadowColor=color;ctx.shadowBlur=size*.42;}
+  ctx.fillStyle = opts.hit ? '#fff' : color;
+  ctx.fillRect(-size/2,-size/2,size,size);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(0,0,0,.30)';                  // cara inferior: da volumen al cubo
+  ctx.fillRect(-size/2,size*.22,size,size*.28);
+  ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = Math.max(2,size*.06);
+  ctx.strokeRect(-size/2,-size/2,size,size);
+  if(opts.elite){                                     // aro ámbar del enemigo de élite
+    ctx.strokeStyle = PAL.elite; ctx.lineWidth = 3;
+    ctx.strokeRect(-size/2-6,-size/2-6,size+12,size+12);
+  }
+  ctx.restore();
+}
+
+// El jugador: la caja, su cañón y el fogonazo. Es el foco, así que va con más contraste.
+function playerBox(x,y,size,angle){
+  ctx.save(); ctx.translate(x,y);
+  // Halo propio: despega la caja del cerco y la convierte en el punto de entrada de la mirada.
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const halo = ctx.createRadialGradient(0,0,0,0,0,size*2.3);
+  halo.addColorStop(0,'rgba(96,165,250,.55)');
+  halo.addColorStop(.35,'rgba(59,130,246,.22)');
+  halo.addColorStop(1,'rgba(37,99,235,0)');
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0,0,size*2.3,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  ctx.save(); ctx.rotate(angle);
+  ctx.fillStyle = '#374151';                          // cañón
+  ctx.fillRect(size*.36,-size*.125,size*.66,size*.25);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillRect(size*.36,-size*.125,size*.66,size*.07);
+  ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = Math.max(1.5,size*.02);
+  ctx.strokeRect(size*.36,-size*.125,size*.66,size*.25);
+
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';   // fogonazo
+  const fx = size*1.12;
+  const flash = ctx.createRadialGradient(fx,0,0,fx,0,size*.50);
+  flash.addColorStop(0,'rgba(255,255,255,1)');
+  flash.addColorStop(.22,'rgba(219,234,254,.85)');
+  flash.addColorStop(.5,'rgba(96,165,250,.35)');
+  flash.addColorStop(1,'rgba(59,130,246,0)');
+  ctx.fillStyle = flash; ctx.beginPath(); ctx.arc(fx,0,size*.50,0,Math.PI*2); ctx.fill();
+  for(let i=0;i<5;i++){                                   // pétalos del destello
+    const a = (i/5)*Math.PI*2, len = size*(.18+rand()*.16);
+    ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = size*.05;
+    ctx.beginPath(); ctx.moveTo(fx,0);
+    ctx.lineTo(fx+Math.cos(a)*len, Math.sin(a)*len); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.restore();
+
+  ctx.fillStyle = PAL.box; ctx.fillRect(-size/2,-size/2,size,size);
+  ctx.fillStyle = 'rgba(255,255,255,.30)';            // cara superior iluminada
+  ctx.fillRect(-size/2,-size/2,size,size*.26);
+  ctx.fillStyle = 'rgba(8,20,45,.42)';
+  ctx.fillRect(-size/2,size*.18,size,size*.32);
+  ctx.strokeStyle = '#eaf3ff'; ctx.lineWidth = Math.max(3,size*.055);
+  ctx.strokeRect(-size/2,-size/2,size,size);
+  ctx.strokeStyle = 'rgba(191,219,254,.45)'; ctx.lineWidth = Math.max(1.5,size*.02);
+  ctx.strokeRect(-size/2-size*.10,-size/2-size*.10,size*1.20,size*1.20);
+  ctx.restore();
+}
+
+// Las balas van en modo aditivo: sobre un fondo tan oscuro es lo único que las hace leer como luz
+// y no como una línea gris.
+function bullet(x,y,angle,len,w){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  ctx.translate(x,y); ctx.rotate(angle);
+  const g = ctx.createLinearGradient(-len,0,0,0);
+  g.addColorStop(0,'rgba(56,110,190,0)');
+  g.addColorStop(.55,'rgba(120,175,255,.55)');
+  g.addColorStop(1,'rgba(226,240,255,1)');
+  ctx.fillStyle = g; ctx.fillRect(-len,-w/2,len,w);
+  const core = ctx.createRadialGradient(0,0,0,0,0,w*3.2);
+  core.addColorStop(0,'rgba(255,255,255,1)');
+  core.addColorStop(.28,'rgba(191,219,254,.85)');
+  core.addColorStop(1,'rgba(96,165,250,0)');
+  ctx.fillStyle = core; ctx.beginPath(); ctx.arc(0,0,w*3.2,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+
+// Estallido en el punto de impacto: cierra la lectura de "la caja está disparando a eso".
+function impact(x,y,r){
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const g = ctx.createRadialGradient(x,y,0,x,y,r);
+  g.addColorStop(0,'rgba(255,255,255,.95)');
+  g.addColorStop(.3,'rgba(191,219,254,.55)');
+  g.addColorStop(1,'rgba(96,165,250,0)');
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill();
+  for(let i=0;i<9;i++){
+    const a = i/9*Math.PI*2 + .3, len = r*(.55+rand()*.65);
+    ctx.strokeStyle = 'rgba(219,234,254,.8)'; ctx.lineWidth = Math.max(1.5,r*.045);
+    ctx.beginPath(); ctx.moveTo(x+Math.cos(a)*r*.22,y+Math.sin(a)*r*.22);
+    ctx.lineTo(x+Math.cos(a)*len,y+Math.sin(a)*len); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function scene(){
+  const px = W*L.player[0], py = H*L.player[1];
+  const base = Math.min(W,H) * .105 * L.pscale;
+
+  // El cerco. Menos enemigos que antes y a distancias parecidas: así se lee como un cerco que se
+  // cierra y no como cubos flotando sueltos.
+  const ring = [
+    {a:-2.50,d:2.75,s:0.95,c:PAL.basic},
+    {a:-1.90,d:3.55,s:0.72,c:PAL.fast},
+    {a:-1.02,d:3.30,s:1.45,c:PAL.tank,elite:true,target:true},
+    {a:-0.20,d:3.30,s:0.66,c:PAL.fast},
+    {a: 0.55,d:2.70,s:1.00,c:PAL.basic},
+    {a: 1.30,d:3.45,s:1.15,c:PAL.husk},
+    {a: 2.05,d:2.85,s:0.82,c:PAL.basic},
+    {a: 2.72,d:3.50,s:1.05,c:PAL.basic},
+    {a:-2.95,d:2.60,s:0.64,c:PAL.fast}
+  ];
+
+  const aimEnemy = ring.find(e => e.target);
+  const tx = px + Math.cos(aimEnemy.a)*base*aimEnemy.d;
+  const ty = py + Math.sin(aimEnemy.a)*base*aimEnemy.d;
+  const aim = Math.atan2(ty-py, tx-px);
+  const aimDist = Math.hypot(tx-px, ty-py);
+
+  // Cada enemigo deja una estela hacia la caja: dirección de avance, no cubos estáticos.
+  for(const e of ring){
+    const ex = px + Math.cos(e.a)*base*e.d, ey = py + Math.sin(e.a)*base*e.d;
+    const size = base*e.s*L.density*1.1;
+    const toward = Math.atan2(py-ey, px-ex);
+    ctx.save(); ctx.globalAlpha = .16;
+    for(let i=1;i<=3;i++){
+      const back = size*.55*i;
+      enemy(ex-Math.cos(toward)*back, ey-Math.sin(toward)*back, size*(1-i*.10), e.c, {rot:(rand()-.5)*.4});
+    }
+    ctx.restore();
+    enemy(ex,ey,size,e.c,{rot:(rand()-.5)*.45,elite:e.elite,glow:true});
+  }
+
+  // Chatarra y chispas.
+  for(let i=0;i<38;i++){
+    const a = rand()*Math.PI*2, d = base*(1.5+rand()*3.2);
+    const s = base*(.04+rand()*.07);
+    ctx.globalAlpha = .18+rand()*.45;
+    ctx.fillStyle = rand()>.65 ? PAL.brass : (rand()>.5 ? PAL.signal : PAL.accent);
+    ctx.save(); ctx.translate(px+Math.cos(a)*d, py+Math.sin(a)*d); ctx.rotate(rand()*3);
+    ctx.fillRect(-s/2,-s/2,s,s); ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  // Las balas van encima de los enemigos, si no quedan enterradas y no se ven.
+  for(let i=0;i<5;i++){
+    const p = .30 + i*.135;
+    bullet(px+Math.cos(aim)*aimDist*p, py+Math.sin(aim)*aimDist*p, aim, base*(.6+rand()*.25), base*.075);
+  }
+  impact(tx - Math.cos(aim)*base*.45, ty - Math.sin(aim)*base*.45, base*.62);
+
+  playerBox(px,py,base*1.55,aim);
+}
+
+function wordmark(){
+  const m = L.mark;
+  const x = m.align === 'center' ? W*m.x : W*m.x;
+  const y = H*m.y;
+  ctx.textAlign = m.align; ctx.textBaseline = 'alphabetic';
+
+  // Franja oscura detrás del texto. Se difumina también en horizontal cuando la marca va a un
+  // lado: si cubre todo el ancho apaga la acción y el jefe queda gris (pasó exactamente eso).
+  const scrimH = m.size*2.35;
+  const sy = y - scrimH*.72, sh = scrimH*1.14;
+  const sw = m.align === 'left' ? W*.66 : W;
+  const off = document.createElement('canvas');
+  off.width = Math.ceil(sw); off.height = Math.ceil(sh);
+  const o = off.getContext('2d');
+  const vg = o.createLinearGradient(0,0,0,sh);
+  vg.addColorStop(0,'rgba(5,7,10,0)');
+  vg.addColorStop(.40,'rgba(5,7,10,.88)');
+  vg.addColorStop(.74,'rgba(5,7,10,.88)');
+  vg.addColorStop(1,'rgba(5,7,10,0)');
+  o.fillStyle = vg; o.fillRect(0,0,sw,sh);
+  if(m.align === 'left'){
+    o.globalCompositeOperation = 'destination-in';
+    const hg = o.createLinearGradient(0,0,sw,0);
+    hg.addColorStop(0,'rgba(0,0,0,1)');
+    hg.addColorStop(.60,'rgba(0,0,0,1)');
+    hg.addColorStop(1,'rgba(0,0,0,0)');
+    o.fillStyle = hg; o.fillRect(0,0,sw,sh);
+  }
+  ctx.drawImage(off,0,sy);
+
+  // Etiqueta superior, en clave de instalación.
+  ctx.font = `600 ${Math.round(m.size*.155)}px Outfit, sans-serif`;
+  ctx.letterSpacing = `${Math.round(m.size*.055)}px`;
+  ctx.fillStyle = PAL.signal;
+  ctx.fillText('CONTAINMENT ARENA', x, y - m.size*.72);
+
+  // Marca principal.
+  ctx.font = `900 ${m.size}px Outfit, sans-serif`;
+  ctx.letterSpacing = `${Math.round(m.size*.012)}px`;
+  ctx.shadowColor = 'rgba(0,0,0,.9)'; ctx.shadowBlur = m.size*.28; ctx.shadowOffsetY = m.size*.03;
+  ctx.fillStyle = PAL.text;
+  ctx.fillText('DEADBOX', x, y);
+  ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+
+  // Regla de acero + subtítulo.
+  const tw = ctx.measureText('DEADBOX').width;
+  const lx = m.align === 'center' ? x - tw/2 : x;
+  ctx.strokeStyle = 'rgba(157,185,201,.5)'; ctx.lineWidth = Math.max(2,m.size*.018);
+  ctx.beginPath(); ctx.moveTo(lx, y + m.size*.20); ctx.lineTo(lx + tw, y + m.size*.20); ctx.stroke();
+
+  ctx.font = `500 ${Math.round(m.size*.165)}px Outfit, sans-serif`;
+  ctx.letterSpacing = `${Math.round(m.size*.048)}px`;
+  ctx.fillStyle = PAL.accent;
+  ctx.fillText('SURVIVE THE ARENA', x, y + m.size*.50);
+  ctx.letterSpacing = '0px';
+
+  if(L.mark.align === 'left'){
+    hazardStripes(x, y + m.size*.72, tw*.42, m.size*.14, .5);
+  }
+}
+
+async function render(){
+  await document.fonts.load('900 100px Outfit');
+  await document.fonts.load('600 40px Outfit');
+  await document.fonts.ready;
+  background();
+  scene();
+  vignette();
+  scanlines();
+  frame();
+  wordmark();
+  document.title = 'ready';
+}
+render();
+</script>
