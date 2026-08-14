@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><title>sheet</title>
+<style>body{margin:0;background:#111}</style><canvas id=s></canvas>
+<script>
+const files=(new URLSearchParams(location.search).get('f')||'').split(',');
+const CW=Number(new URLSearchParams(location.search).get('cw')||760);
+(async()=>{const c=document.getElementById('s'),x=c.getContext('2d');let CH=0;const vids=[];
+for(const f of files){const v=document.createElement('video');v.src=f;v.muted=true;
+await new Promise(r=>v.onloadeddata=r);vids.push(v);CH=Math.round(CW*v.videoHeight/v.videoWidth);}
+c.width=CW*vids.length;c.height=CH;
+vids.forEach((v,i)=>{x.drawImage(v,i*CW,0,CW,CH);x.fillStyle='#0f0';x.font='bold 22px monospace';x.fillText(files[i],i*CW+10,28);});
+document.title='ok';})();
+</script>

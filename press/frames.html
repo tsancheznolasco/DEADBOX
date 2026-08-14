@@ -1,0 +1,34 @@
+<meta charset="utf-8">
+<title>frame check</title>
+<style>body{margin:0;background:#111;color:#eee;font:14px monospace}#info{padding:8px}</style>
+<div id="info">cargando…</div>
+<canvas id="sheet"></canvas>
+<script>
+// Hoja de contactos para comprobar que el vídeo grabado enseña partida de verdad (y el HUD),
+// en vez de fiarse de que el fichero exista y pese algo.
+const name = new URLSearchParams(location.search).get('v') || 'deadbox-landscape.mp4';
+const q=new URLSearchParams(location.search);
+const COLS=Number(q.get('cols')||4), ROWS=Number(q.get('rows')||2), N=COLS*ROWS, CW=Number(q.get('cw')||480);
+
+const v = document.createElement('video');
+v.src = name; v.muted = true;
+
+v.onloadedmetadata = async () => {
+  const CH = Math.round(CW * v.videoHeight / v.videoWidth);
+  const sheet = document.getElementById('sheet');
+  sheet.width = CW*COLS; sheet.height = CH*ROWS;
+  const c = sheet.getContext('2d');
+  document.getElementById('info').textContent =
+    `${name} — ${v.videoWidth}x${v.videoHeight} — ${v.duration.toFixed(2)}s`;
+
+  for (let i = 0; i < N; i++) {
+    const t = v.duration * (i + .5) / N;
+    await new Promise(r => { v.onseeked = r; v.currentTime = t; });
+    c.drawImage(v, (i%COLS)*CW, Math.floor(i/COLS)*CH, CW, CH);
+    c.fillStyle = '#0f0'; c.font = 'bold 20px monospace';
+    c.fillText(t.toFixed(1)+'s', (i%COLS)*CW+10, Math.floor(i/COLS)*CH+26);
+  }
+  document.title = 'sheet-ready';
+};
+v.onerror = () => { document.getElementById('info').textContent = 'ERROR al cargar ' + name; document.title='sheet-error'; };
+</script>

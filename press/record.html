@@ -1,0 +1,173 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>recording</title>
+<style>
+  html,body{margin:0;padding:0;background:#05070a;overflow:hidden;width:100%;height:100%}
+  iframe{display:block;border:0;width:100vw;height:100vh}
+</style>
+<iframe id="game" src="/index.html"></iframe>
+<script>
+// Graba el vídeo de vista previa para CrazyGames. Un bot juega de verdad y se graba el lienzo del
+// juego.
+//
+// Se intentó capturar la pestaña entera con getDisplayMedia para llevarse también el HUD (que es
+// DOM, no lienzo). No sirve: en headless no hay compositor y la captura devuelve un fotograma
+// congelado — se comprobó que cuatro fotogramas separados por segundos eran idénticos bit a bit.
+// Y con ventana real la pantalla física limita el área visible a 1470x780, así que no se llega a
+// 1080p. captureStream sobre el lienzo se alimenta de los repintados, no del compositor, y sí
+// funciona sin ventana y a resolución completa.
+const params = new URLSearchParams(location.search);
+const SECONDS = Number(params.get('seconds') || 16);
+const NAME = params.get('name') || 'preview';
+const OUT_W = Number(params.get('w') || 1920);
+const OUT_H = Number(params.get('h') || 1080);
+const ROUND = Number(params.get('round') || 8);
+
+const BOT = `
+(function(){
+  const NEAR = 260;          // a partir de aquí el bot huye del enemigo
+  const DASH_AT = 105;       // distancia a la que se aparta con el dash
+  let lastJump = 0, lastDash = 0;
+
+  function pick(){
+    let best = null, bd = Infinity;
+    for(const z of zombies){
+      if(!z.active) continue;
+      const d = (z.x-player.x)**2 + (z.y-player.y)**2;
+      if(d < bd){ bd = d; best = z; }
+    }
+    return {best, dist: Math.sqrt(bd)};
+  }
+
+  function step(){
+    requestAnimationFrame(step);
+    if(typeof gameState === 'undefined') return;
+
+    // Entre rondas elige mejora sola: el vídeo enseña progresión en vez de quedarse parado.
+    if(gameState === 'UPGRADING'){
+      const card = document.querySelector('.upgrade-card');
+      if(card) card.click();
+      return;
+    }
+    if(gameState !== 'PLAYING' || !player) return;
+
+    const {best, dist} = pick();
+    if(!best) return;
+
+    // El juego dispara solo hacia el ratón, así que apuntar es mover el ratón.
+    Input.mouse.x = best.x - camera.x;
+    Input.mouse.y = best.y - camera.y;
+
+    // Repulsión de lo cercano + atracción suave al centro para no acabar arrinconado.
+    let mx = (arena.width/2 - player.x) * 0.35;
+    let my = (arena.height/2 - player.y) * 0.35;
+    for(const z of zombies){
+      if(!z.active) continue;
+      const dx = player.x - z.x, dy = player.y - z.y;
+      const d = Math.hypot(dx,dy) || 1;
+      if(d < NEAR){ const w = (NEAR - d) * 6 / d; mx += dx * w; my += dy * w; }
+    }
+    const m = Math.hypot(mx,my) || 1;
+    Input.keys.w = my/m < -0.30;
+    Input.keys.s = my/m >  0.30;
+    Input.keys.a = mx/m < -0.30;
+    Input.keys.d = mx/m >  0.30;
+
+    const now = performance.now();
+    if(dist < DASH_AT && now - lastDash > 1500){ Input.pressed.add('shift'); lastDash = now; }
+    Input.keys.space = (now - lastJump > 6000) ? (lastJump = now, true) : false;
+  }
+
+  function boot(){
+    if(typeof beginRun !== 'function' || typeof zombies === 'undefined'){ return setTimeout(boot, 80); }
+    // La arena crece con la ronda: en la 1 mide 1000x700 y deja el encuadre medio negro, en la 8
+    // mide 2000x1500 y lo llena. Se acompaña de la mejora que cualquier jugador llevaría a esas
+    // alturas, para grabar una partida creíble y no un muñeco indefenso.
+    beginRun(__ROUND__);
+    setTimeout(function(){
+      if(!player) return;
+      player.weaponLevel = 5;
+      player.bonusDamage = 12;
+      player.fireRate = 160;
+      player.maxHealth = 170; player.health = 170;
+      player.perks.scatter = 2; player.perks.ricochet = 1;
+    }, 60);
+    step();
+  }
+  boot();
+})();
+`;
+
+function injectBot(doc){
+  const s = doc.createElement('script');
+  s.textContent = BOT.replace('__ROUND__', String(ROUND));
+  doc.body.appendChild(s);                     // dentro del iframe ve zombies, player, Input...
+}
+
+async function run(){
+  const frame = document.getElementById('game');
+  await new Promise(r => frame.addEventListener('load', r, {once:true}));
+  await new Promise(r => setTimeout(r, 1200));   // que el juego termine de montarse
+
+  if (params.get('calibrate')) {
+    await fetch('/probe?w=' + innerWidth + '&h=' + innerHeight, {method:'POST'});
+    document.title = 'calibrated';
+    return;
+  }
+
+  // Fuente: el lienzo del juego. Se dibuja a devicePixelRatio, así que con el área visible bien
+  // calibrada su tamaño real ya es el del vídeo y se copia sin escalar.
+  const source = frame.contentDocument.getElementById('gameCanvas');
+  if (!source) { document.title = 'error:no-canvas'; return; }
+  const sourceKind = 'canvas';
+
+  const mime = MediaRecorder.isTypeSupported('video/mp4;codecs=avc1.42E01E')
+    ? 'video/mp4;codecs=avc1.42E01E'
+    : (MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm');
+
+  const out = document.createElement('canvas');
+  out.width = OUT_W; out.height = OUT_H;
+  const octx = out.getContext('2d');
+  let drawing = true, painted = 0;
+  (function draw(){
+    if(!drawing) return;
+    requestAnimationFrame(draw);
+    const vw = source.videoWidth || source.width, vh = source.videoHeight || source.height;
+    if(!vw || !vh) return;
+    // Encajar sin recortar: cubrir se comía los bordes del HUD (se veía "eapon Lv. 5").
+    const scale = Math.min(OUT_W/vw, OUT_H/vh);
+    const dw = vw*scale, dh = vh*scale;
+    octx.fillStyle = '#05070a'; octx.fillRect(0,0,OUT_W,OUT_H);
+    octx.drawImage(source, (OUT_W-dw)/2, (OUT_H-dh)/2, dw, dh);
+    painted++;
+  })();
+
+  const chunks = [];
+  const rec = new MediaRecorder(out.captureStream(60), {mimeType: mime, videoBitsPerSecond: 10_000_000});
+  rec.ondataavailable = e => { if(e.data.size) chunks.push(e.data); };
+  const done = new Promise(r => rec.onstop = r);
+
+  injectBot(frame.contentDocument);
+  await new Promise(r => setTimeout(r, 1400));   // que la ronda arranque antes de grabar
+  rec.start();
+  await new Promise(r => setTimeout(r, SECONDS * 1000));
+  rec.stop();
+  drawing = false;
+  await done;
+
+  // Si el marcador no se movió, lo grabado no es una partida.
+  let stats = 'n/a';
+  try {
+    stats = frame.contentWindow.eval(
+      '[currentRound,Math.round(score),kills,gameState,zombies.filter(z=>z.active).length].join("/")');
+  } catch(e){ stats = 'err:' + e.message; }
+
+  const blob = new Blob(chunks, {type: mime.split(';')[0]});
+  const res = await fetch('/save?name=' + encodeURIComponent(NAME) +
+                          '&stats=' + encodeURIComponent(stats + ' fotogramas:' + painted + ' fuente:' + sourceKind) +
+                          '&ext=' + (mime.startsWith('video/mp4') ? 'mp4' : 'webm'),
+                          {method:'POST', body: blob});
+  document.title = res.ok ? 'saved:' + blob.size : 'error:save';
+}
+run();
+</script>
