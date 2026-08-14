@@ -14,8 +14,11 @@ for (const entry of required) {
 
 fs.rmSync(dist, {recursive: true, force: true});
 fs.mkdirSync(dist, {recursive: true});
+// Los archivos ocultos del sistema (.DS_Store y compañía) acababan dentro del paquete que se
+// sube al portal, así que se filtran aquí y no en el comando que empaqueta.
+const isJunk = file => path.basename(file).startsWith('.');
 for (const entry of required) {
-  fs.cpSync(path.join(root, entry), path.join(dist, entry), {recursive: true});
+  fs.cpSync(path.join(root, entry), path.join(dist, entry), {recursive: true, filter: source => !isJunk(source)});
 }
 
 console.log(`Build created at ${dist}`);

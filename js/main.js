@@ -56,8 +56,8 @@ function addChainArc(from,to){
     if(dashTrails.length>ENTITY_LIMITS.dashTrails)dashTrails.shift();
     addRing(to.x,to.y,22,'#7fd4d0');
 }
-const COMBO_CAP = 25;
-const COMBO_STEP = 0.08;
+const COMBO_CAP = 20;
+const COMBO_STEP = 0.03;
 function comboMultiplier(){return 1+Math.min(combo,COMBO_CAP)*COMBO_STEP;}
 function comboWindow(){return Math.max(1500,3000-Math.min(combo,COMBO_CAP)*60);}
 
@@ -670,7 +670,7 @@ function checkCollisions(){
 }
 function handleEnemyDeath(z){
     if(z.deadHandled)return;z.deadHandled=true;registerDefeat(z);kills++;roundKills++;player.kills=kills;combo++;bestCombo=Math.max(bestCombo,combo);player.bestCombo=bestCombo;comboTimer=comboWindow();
-    score+=(z.scoreValue+combo)*comboMultiplier()*(hasModifier('Sin curación')?1.2:1);
+    score+=(z.scoreValue+combo*.25)*comboMultiplier()*(hasModifier('Sin curación')?1.2:1);
     playSound('combo',1+Math.min(combo,COMBO_CAP)*.045);
     if(['normal','fast'].includes(z.type)){recentDeadBasics.push({type:z.type});if(recentDeadBasics.length>8)recentDeadBasics.shift();}for(const collector of zombies)if(collector.active&&['harvester','undertaker'].includes(collector.type))collector.energy++;
     try{z.onDeath();}catch(e){console.warn('Entity cleanup skipped',e);}

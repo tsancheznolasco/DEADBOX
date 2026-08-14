@@ -303,6 +303,8 @@ vm.runInThisContext(`
   if(comboMultiplier()!==1+COMBO_CAP*COMBO_STEP)throw new Error('El multiplicador no respeta su tope');
   if(comboWindow()>=midWindow)throw new Error('La ventana de combo no se acorta al subir');
   if(comboWindow()<1000)throw new Error('La ventana de combo quedó demasiado corta');
+  // El combo premia la racha pero no debe multiplicar la puntuación por varias veces.
+  if(comboMultiplier()>2)throw new Error('El multiplicador de combo volvió a dispararse');
   combo=0;
 
   // Aspectos: catálogo coherente, compra/equipamiento correctos y sin efecto sobre el juego.
